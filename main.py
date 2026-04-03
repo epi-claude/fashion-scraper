@@ -5,7 +5,6 @@ Steps New York – Resend Inbound Webhook Image Scraper + Portfolio
 import io
 import logging
 import os
-import subprocess
 import zipfile
 from pathlib import Path
 from typing import List, Optional
@@ -160,29 +159,13 @@ async def delete_folder(product: str):
     return JSONResponse({"status": "deleted", "folder": product})
 
 
-# ── Get tunnel URL ────────────────────────────────────────────────────────────
-def get_tunnel_url() -> str:
-    try:
-        result = subprocess.run(
-            ["journalctl", "-u", "cloudflared", "--no-pager", "-n", "100"],
-            capture_output=True, text=True, timeout=5,
-        )
-        import re
-        urls = re.findall(r'https://[a-z0-9-]+\.trycloudflare\.com', result.stdout)
-        if urls:
-            return urls[-1]
-    except Exception:
-        pass
-    return PORTFOLIO_BASE_URL
-
-
 # ── Send notification email ───────────────────────────────────────────────────
-def send_notification_email(product_handle: str, tunnel_url: str) -> None:
+def send_notification_email(product_handle: str) -> None:
     if not RESEND_API_KEY:
         log.warning("RESEND_API_KEY not set — skipping notification email.")
         return
 
-    base_url      = tunnel_url or PORTFOLIO_BASE_URL
+    base_url      = PORTFOLIO_BASE_URL
     portfolio_url = f"{base_url}/?product={product_handle}" if base_url else "/portfolio"
     product_label = product_handle.replace("-", " ").title()
 
@@ -294,7 +277,6 @@ def handle_email(payload: dict) -> None:
         return
 
     log.info("Found %d product URL(s).", len(urls))
-    tunnel_url = get_tunnel_url()
 
     for url in urls:
         try:
@@ -305,7 +287,7 @@ def handle_email(payload: dict) -> None:
             process_product_url(url, OUTPUT_DIR)
 
             if not already_existed and folder.exists():
-                send_notification_email(handle, tunnel_url)
+                send_notification_email(handle)
         except Exception as exc:
             log.error("Failed processing %s: %s", url, exc, exc_info=True)
 
