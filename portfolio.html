@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MARO.SHOPPING — Product Portfolio</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --cream: #f5f0e8; --sand: #e8ddd0; --charcoal: #1a1a1a;
+  --muted: #6b6560; --accent: #8b6f5e; --accent-light: #c4a992;
+  --white: #fff; --danger: #c0392b;
+  --shadow: 0 2px 16px rgba(26,26,26,0.08);
+  --shadow-hover: 0 8px 32px rgba(26,26,26,0.16);
+  --sidebar-w: 240px;
+}
+body { background: var(--cream); color: var(--charcoal); font-family: 'DM Sans', sans-serif; font-size: 15px; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ── Header ── */
+header { background: var(--charcoal); color: var(--cream); padding: 0 32px; height: 60px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; position: sticky; top: 0; z-index: 200; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand-title { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 300; letter-spacing: 0.1em; }
+.brand-sub { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent-light); }
+.header-right { display: flex; align-items: center; gap: 20px; }
+.header-stat { text-align: right; font-size: 11px; color: var(--accent-light); }
+.header-stat span { display: block; font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--white); font-weight: 300; line-height: 1; }
+
+/* ── New banner ── */
+#new-banner { display: none; background: var(--accent); color: var(--white); padding: 10px 32px; font-size: 13px; align-items: center; gap: 10px; flex-shrink: 0; }
+#new-banner.visible { display: flex; }
+.new-dot { width: 7px; height: 7px; background: #fff; border-radius: 50%; flex-shrink: 0; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.5)} }
+
+/* ── Selection toolbar ── */
+#sel-toolbar { display: none; background: #2c2420; color: var(--white); padding: 9px 32px; align-items: center; gap: 12px; flex-shrink: 0; border-bottom: 2px solid var(--accent); }
+#sel-toolbar.visible { display: flex; }
+.sel-label { font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 300; }
+.sep { width: 1px; height: 22px; background: rgba(255,255,255,0.15); }
+.tb-btn { background: transparent; border: 1px solid rgba(255,255,255,0.25); color: var(--white); padding: 5px 14px; border-radius: 2px; font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.tb-btn:hover { background: rgba(255,255,255,0.1); }
+.tb-btn.primary { background: var(--accent); border-color: var(--accent); }
+.tb-btn.danger { border-color: rgba(192,57,43,0.5); color: #ff9988; }
+.tb-btn.danger:hover { background: rgba(192,57,43,0.15); }
+.tb-spacer { flex: 1; }
+.tb-hint { font-size: 11px; color: rgba(255,255,255,0.3); }
+
+/* ── Layout ── */
+.layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+/* ── Sidebar ── */
+.sidebar { width: var(--sidebar-w); background: var(--white); border-right: 1px solid var(--sand); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+.sidebar-search { padding: 12px 14px; }
+.sidebar-search input { width: 100%; background: var(--cream); border: 1px solid var(--sand); padding: 7px 12px; border-radius: 2px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--charcoal); outline: none; transition: border-color 0.2s; }
+.sidebar-search input:focus { border-color: var(--accent); }
+.sidebar-divider { height: 1px; background: var(--sand); }
+.sidebar-label { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); padding: 14px 16px 8px; font-weight: 500; }
+.sidebar-tab-all { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; transition: background 0.15s; border-left: 3px solid transparent; font-size: 13px; color: var(--muted); background: none; border-top: none; border-right: none; border-bottom: none; width: 100%; text-align: left; font-family: 'DM Sans', sans-serif; }
+.sidebar-tab-all:hover { background: var(--cream); color: var(--charcoal); }
+.sidebar-tab-all.active { background: var(--cream); border-left-color: var(--accent); color: var(--charcoal); font-weight: 500; }
+.tab-all-count { margin-left: auto; font-size: 11px; color: var(--muted); background: var(--sand); padding: 2px 7px; border-radius: 10px; }
+.product-tab { display: flex; align-items: center; border-left: 3px solid transparent; transition: background 0.15s; }
+.product-tab:hover { background: var(--cream); }
+.product-tab:hover .tab-zip, .product-tab:hover .tab-del { opacity: 1; }
+.product-tab.active { background: var(--cream); border-left-color: var(--accent); }
+.product-tab.active .tab-name { color: var(--charcoal); font-weight: 500; }
+.tab-name { flex: 1; padding: 9px 0 9px 16px; font-size: 12px; color: var(--muted); font-family: 'DM Sans', sans-serif; background: none; border: none; text-align: left; cursor: pointer; line-height: 1.3; }
+.tab-count { font-size: 10px; color: var(--muted); background: var(--sand); padding: 2px 6px; border-radius: 10px; flex-shrink: 0; }
+.product-tab.active .tab-count { background: var(--accent-light); color: var(--charcoal); }
+.tab-zip { opacity: 0; background: none; border: none; color: var(--accent); padding: 7px 8px; cursor: pointer; font-size: 11px; transition: all 0.15s; flex-shrink: 0; font-family: 'DM Sans', sans-serif; }
+.tab-zip:hover { background: var(--accent); color: var(--white); }
+.tab-del { opacity: 0; background: none; border: none; color: var(--muted); padding: 7px 8px; cursor: pointer; font-size: 12px; transition: all 0.15s; flex-shrink: 0; }
+.tab-del:hover { color: var(--danger); }
+.product-tab.active .tab-zip, .product-tab.active .tab-del { opacity: 0.5; }
+.product-tab.active:hover .tab-zip, .product-tab.active:hover .tab-del { opacity: 1; }
+
+/* ── Main ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Thumbnail Slider ── */
+.slider-section { background: var(--white); border-bottom: 1px solid var(--sand); padding: 16px 0; flex-shrink: 0; position: relative; }
+.slider-header { display: flex; align-items: center; justify-content: space-between; padding: 0 20px 12px; }
+.slider-title { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.slider-nav-btns { display: flex; gap: 6px; }
+.slider-nav { background: none; border: 1px solid var(--sand); color: var(--muted); width: 28px; height: 28px; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.2s; }
+.slider-nav:hover { border-color: var(--accent); color: var(--accent); }
+.slider-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+.slider-track-wrap { overflow: hidden; padding: 0 20px; }
+.slider-track { display: flex; gap: 12px; transition: transform 0.35s cubic-bezier(0.4,0,0.2,1); will-change: transform; }
+.thumb-card { flex-shrink: 0; width: 100px; cursor: pointer; border-radius: 2px; overflow: hidden; border: 2px solid transparent; transition: all 0.2s; position: relative; }
+.thumb-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.thumb-card.active { border-color: var(--accent); }
+.thumb-img-wrap { aspect-ratio: 3/4; background: var(--sand); overflow: hidden; }
+.thumb-img-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; display: block; }
+.thumb-card:hover .thumb-img-wrap img { transform: scale(1.08); }
+.thumb-label { padding: 6px 6px 7px; background: var(--white); border-top: 1px solid var(--sand); }
+.thumb-name { font-size: 10px; color: var(--charcoal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.thumb-count { font-size: 9px; color: var(--muted); margin-top: 1px; }
+.thumb-active-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--accent); transform: scaleX(0); transition: transform 0.2s; }
+.thumb-card.active .thumb-active-bar { transform: scaleX(1); }
+
+/* ── Content area (scrollable) ── */
+.content-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+/* ── Topbar ── */
+.main-topbar { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; background: var(--cream); border-bottom: 1px solid var(--sand); position: sticky; top: 0; z-index: 10; }
+.main-stats { font-size: 12px; color: var(--muted); }
+.main-actions { display: flex; align-items: center; gap: 6px; }
+.action-btn { background: transparent; border: 1px solid var(--sand); color: var(--muted); padding: 5px 12px; border-radius: 2px; font-family: 'DM Sans', sans-serif; font-size: 11px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Grid ── */
+.grid { padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+.card { background: var(--white); border-radius: 2px; overflow: hidden; cursor: pointer; transition: box-shadow 0.2s, transform 0.2s; box-shadow: var(--shadow); position: relative; animation: fadeUp 0.3s ease both; }
+.card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.card.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.card-checkbox { position: absolute; top: 8px; right: 8px; z-index: 10; width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,0.92); border: 1.5px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; transition: all 0.15s; cursor: pointer; font-size: 11px; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+.card-checkbox.checked { background: var(--accent); border-color: var(--accent); color: white; }
+.card:hover .card-checkbox { border-color: var(--accent); }
+.card-img-wrap { position: relative; overflow: hidden; aspect-ratio: 3/4; background: var(--sand); }
+.card-img-wrap img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; display: block; }
+.card:hover .card-img-wrap img { transform: scale(1.05); }
+.card-badge { position: absolute; top: 8px; left: 8px; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 8px; border-radius: 1px; font-family: 'DM Sans', sans-serif; }
+.card-badge.new-badge { background: var(--accent); color: var(--white); }
+.card-actions { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(20,12,8,0.88)); padding: 24px 8px 8px; display: flex; gap: 5px; opacity: 0; transition: opacity 0.2s; }
+.card:hover .card-actions { opacity: 1; }
+.act-btn { flex: 1; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22); color: white; padding: 5px 2px; border-radius: 1px; font-size: 10px; cursor: pointer; text-align: center; transition: background 0.15s; font-family: 'DM Sans', sans-serif; display: flex; align-items: center; justify-content: center; gap: 3px; }
+.act-btn:hover { background: rgba(255,255,255,0.25); }
+.act-btn.dl { background: rgba(139,111,94,0.65); border-color: rgba(139,111,94,0.8); }
+.act-btn.del { background: rgba(192,57,43,0.55); border-color: rgba(192,57,43,0.7); }
+.card-info { padding: 8px 10px 10px; border-top: 1px solid var(--sand); }
+.card-product { font-family: 'Cormorant Garamond', serif; font-size: 13px; color: var(--charcoal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.card-meta { font-size: 10px; color: var(--muted); }
+
+/* ── Load More ── */
+.load-more-wrap { padding: 24px 20px; text-align: center; flex-shrink: 0; }
+.load-more-btn { background: var(--white); border: 1px solid var(--sand); color: var(--muted); padding: 10px 32px; border-radius: 2px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+.load-more-btn:hover { border-color: var(--accent); color: var(--accent); }
+.load-more-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+.empty { grid-column: 1/-1; text-align: center; padding: 60px 0; color: var(--muted); }
+.empty-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.35; }
+.empty h3 { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 300; margin-bottom: 6px; }
+
+/* ── Lightbox ── */
+#lightbox { display: none; position: fixed; inset: 0; background: rgba(8,5,3,0.95); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; }
+#lightbox.open { display: flex; }
+#lb-img { max-width: 78vw; max-height: 76vh; object-fit: contain; display: block; border-radius: 1px; }
+.lb-info { margin-top: 14px; text-align: center; }
+.lb-product { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 300; color: var(--white); margin-bottom: 4px; }
+.lb-counter { color: rgba(255,255,255,0.4); font-size: 11px; margin-bottom: 12px; }
+.lb-actions { display: flex; gap: 10px; justify-content: center; }
+.lb-btn { border: none; padding: 9px 24px; font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer; border-radius: 2px; letter-spacing: 0.06em; transition: background 0.2s; }
+.lb-btn.dl { background: var(--accent); color: white; }
+.lb-btn.dl:hover { background: #7a6050; }
+.lb-btn.del { background: rgba(192,57,43,0.8); color: white; }
+.lb-btn.del:hover { background: var(--danger); }
+.lb-close { position: fixed; top: 20px; right: 28px; background: none; border: none; color: rgba(255,255,255,0.6); font-size: 30px; cursor: pointer; line-height: 1; }
+.lb-close:hover { color: white; }
+.lb-nav { position: fixed; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.08); border: none; color: var(--white); font-size: 26px; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+.lb-nav:hover { background: rgba(255,255,255,0.18); }
+#lb-prev { left: 20px; } #lb-next { right: 20px; }
+
+/* ── Confirm dialog ── */
+#confirm-dialog { display: none; position: fixed; inset: 0; background: rgba(10,6,4,0.7); z-index: 2000; align-items: center; justify-content: center; }
+#confirm-dialog.open { display: flex; }
+.dialog-box { background: var(--white); border-radius: 3px; padding: 28px; max-width: 380px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.dialog-icon { font-size: 24px; margin-bottom: 10px; }
+.dialog-title { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 400; margin-bottom: 8px; }
+.dialog-msg { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.dialog-btn { padding: 8px 20px; border-radius: 2px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
+.dialog-btn.cancel { background: var(--cream); color: var(--muted); border: 1px solid var(--sand); }
+.dialog-btn.confirm-del { background: var(--danger); color: white; }
+.dialog-btn.confirm-del:hover { background: #a93226; }
+
+/* ── Loading / Toast ── */
+#loading { position: fixed; inset: 0; background: var(--cream); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 999; transition: opacity 0.4s; }
+#loading.hidden { opacity: 0; pointer-events: none; }
+.spinner { width: 34px; height: 34px; border: 2px solid var(--sand); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 300; color: var(--muted); letter-spacing: 0.1em; }
+#toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--charcoal); color: var(--white); padding: 10px 22px; border-radius: 2px; font-size: 13px; transition: transform 0.3s; z-index: 3000; pointer-events: none; white-space: nowrap; }
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.error { background: var(--danger); }
+
+footer { background: var(--charcoal); color: var(--muted); text-align: center; padding: 16px; font-size: 11px; letter-spacing: 0.08em; flex-shrink: 0; }
+
+@media (max-width: 700px) {
+  .sidebar { width: 190px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; padding: 12px; }
+  .thumb-card { width: 80px; }
+}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><div class="loading-text">Loading collection…</div></div>
+<div id="toast"></div>
+
+<div id="confirm-dialog">
+  <div class="dialog-box">
+    <div class="dialog-icon" id="dialog-icon">🗑</div>
+    <div class="dialog-title" id="dialog-title">Delete?</div>
+    <div class="dialog-msg" id="dialog-msg">This cannot be undone.</div>
+    <div class="dialog-actions">
+      <button class="dialog-btn cancel" onclick="closeDialog()">Cancel</button>
+      <button class="dialog-btn confirm-del" id="dialog-confirm">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="new-banner">
+  <div class="new-dot"></div>
+  <span id="new-banner-text">New product added to your portfolio</span>
+</div>
+
+<div id="sel-toolbar">
+  <div class="sel-label"><span id="sel-num">0</span> <span style="font-size:12px;color:var(--accent-light)">selected</span></div>
+  <div class="sep"></div>
+  <button class="tb-btn primary" onclick="downloadSelected()">⬇ Download ZIP</button>
+  <button class="tb-btn" onclick="selectAll()">Select All</button>
+  <button class="tb-btn danger" onclick="deleteSelected()">🗑 Delete Selected</button>
+  <button class="tb-btn" onclick="clearSelection()">✕ Clear</button>
+  <div class="tb-spacer"></div>
+  <span class="tb-hint">Multi-select mode active</span>
+</div>
+
+<header>
+  <div class="brand">
+    <div class="brand-title">MARO.SHOPPING</div>
+    <div class="brand-sub">Portfolio</div>
+  </div>
+  <div class="header-right">
+    <div class="header-stat"><span id="total-count">0</span>total images</div>
+    <div class="header-stat"><span id="folder-count">0</span>products</div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-search">
+      <input type="text" id="search" placeholder="Search products…">
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-label">Products</div>
+    <button class="sidebar-tab-all active" id="btn-all" onclick="applyFilter('all')">
+      All Products
+      <span class="tab-all-count" id="all-count">0</span>
+    </button>
+    <div id="sidebar-tabs"></div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Thumbnail slider -->
+    <div class="slider-section">
+      <div class="slider-header">
+        <div class="slider-title">Browse by product</div>
+        <div class="slider-nav-btns">
+          <button class="slider-nav" id="sl-prev">‹</button>
+          <button class="slider-nav" id="sl-next">›</button>
+        </div>
+      </div>
+      <div class="slider-track-wrap" id="slider-wrap">
+        <div class="slider-track" id="slider-track"></div>
+      </div>
+    </div>
+
+    <!-- Content area -->
+    <div class="content-area" id="content-area">
+      <div class="main-topbar">
+        <div class="main-stats" id="stats-text"></div>
+        <div class="main-actions">
+          <button class="action-btn" onclick="selectAll()">☐ Select All</button>
+          <button class="action-btn" onclick="clearSelection()">✕ Clear</button>
+        </div>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="load-more-wrap" id="load-more-wrap" style="display:none">
+        <button class="load-more-btn" onclick="loadMore()">
+          <span>↓</span> Load More
+        </button>
+        <div class="load-more-hint" id="load-more-hint"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer>MARO.SHOPPING · Image Portfolio · Auto-updated on new arrivals</footer>
+
+<div id="lightbox">
+  <button class="lb-close" id="lb-close">×</button>
+  <button class="lb-nav" id="lb-prev">‹</button>
+  <img id="lb-img" src="" alt="">
+  <div class="lb-info">
+    <div class="lb-product" id="lb-product"></div>
+    <div class="lb-counter" id="lb-counter"></div>
+    <div class="lb-actions">
+      <button class="lb-btn dl" onclick="downloadLightboxImage()">⬇ Download</button>
+      <button class="lb-btn del" onclick="deleteLightboxImage()">🗑 Delete</button>
+    </div>
+  </div>
+  <button class="lb-nav" id="lb-next">›</button>
+</div>
+
+<script>
+const PAGE_SIZE = 24;
+let allImages=[], filteredImages=[], visibleCount=PAGE_SIZE;
+let selectedSet=new Set(), currentLbIndex=0, activeFilter='all';
+let sliderOffset=0, sliderItemW=112, sliderProducts=[];
+const urlParams=new URLSearchParams(window.location.search);
+const highlightProduct=urlParams.get('product');
+
+function showToast(msg,type='',dur=3000){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=type==='error'?'show error':'show';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.className='',dur);
+}
+function fmt(h){return h.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
+
+// ── Load ──
+async function loadData(silent=false){
+  try{
+    const r=await fetch('/api/images');
+    const d=await r.json();
+    allImages=d.images||[];
+    buildSidebar(d.newest_product);
+    buildSlider(d.newest_product);
+    applyFilter(activeFilter,true);
+    document.getElementById('total-count').textContent=allImages.length;
+    const flds=[...new Set(allImages.map(i=>i.product))];
+    document.getElementById('folder-count').textContent=flds.length;
+    document.getElementById('all-count').textContent=allImages.length;
+    if(!silent) document.getElementById('loading').classList.add('hidden');
+    if(highlightProduct){
+      document.getElementById('new-banner').classList.add('visible');
+      document.getElementById('new-banner-text').textContent='✦ New arrival added: '+fmt(highlightProduct);
+    }
+  }catch(e){
+    if(!silent){document.getElementById('loading').classList.add('hidden');showToast('Failed to load','error');}
+  }
+}
+
+// ── Slider ──
+function buildSlider(newestProduct){
+  const products=[...new Set(allImages.map(i=>i.product))].sort();
+  sliderProducts=products;
+  const track=document.getElementById('slider-track');
+  track.innerHTML='';
+
+  products.forEach(p=>{
+    const imgs=allImages.filter(i=>i.product===p);
+    const count=imgs.length;
+    // pick random image as thumbnail
+    const thumb=imgs[Math.floor(Math.random()*imgs.length)];
+    const isNew=p===newestProduct;
+    const isActive=activeFilter===p||(activeFilter==='all'&&p===products[0]&&false);
+
+    const card=document.createElement('div');
+    card.className='thumb-card'+(activeFilter===p?' active':'');
+    card.dataset.product=p;
+    card.innerHTML=
+      '<div class="thumb-img-wrap">'+
+      '<img src="/images/'+p+'/'+thumb.filename+'" alt="'+fmt(p)+'" loading="lazy">'+
+      '</div>'+
+      '<div class="thumb-label">'+
+      '<div class="thumb-name">'+fmt(p)+'</div>'+
+      '<div class="thumb-count">'+count+' image'+(count!==1?'s':'')+(isNew?' ✦':'')+'</div>'+
+      '</div>'+
+      '<div class="thumb-active-bar"></div>';
+    card.addEventListener('click',()=>applyFilter(p));
+    track.appendChild(card);
+  });
+  updateSliderNav();
+}
+
+function updateSliderNav(){
+  const wrap=document.getElementById('slider-wrap');
+  const track=document.getElementById('slider-track');
+  const maxOffset=Math.max(0, track.scrollWidth - wrap.clientWidth);
+  document.getElementById('sl-prev').disabled=sliderOffset<=0;
+  document.getElementById('sl-next').disabled=sliderOffset>=maxOffset;
+}
+
+document.getElementById('sl-prev').addEventListener('click',()=>{
+  sliderOffset=Math.max(0,sliderOffset-(sliderItemW*3));
+  document.getElementById('slider-track').style.transform='translateX(-'+sliderOffset+'px)';
+  updateSliderNav();
+});
+document.getElementById('sl-next').addEventListener('click',()=>{
+  const wrap=document.getElementById('slider-wrap');
+  const track=document.getElementById('slider-track');
+  const maxOffset=Math.max(0,track.scrollWidth-wrap.clientWidth);
+  sliderOffset=Math.min(maxOffset,sliderOffset+(sliderItemW*3));
+  track.style.transform='translateX(-'+sliderOffset+'px)';
+  updateSliderNav();
+});
+
+// ── Sidebar ──
+function buildSidebar(newestProduct){
+  const products=[...new Set(allImages.map(i=>i.product))].sort();
+  const wrap=document.getElementById('sidebar-tabs');
+  wrap.innerHTML='';
+  products.forEach(p=>{
+    const count=allImages.filter(i=>i.product===p).length;
+    const isNew=p===newestProduct;
+    const tab=document.createElement('div');
+    tab.className='product-tab'+(activeFilter===p?' active':'');
+    tab.dataset.product=p;
+    tab.innerHTML=
+      '<button class="tab-name" title="'+fmt(p)+'">'+(isNew?'✦ ':'')+fmt(p)+'</button>'+
+      '<span class="tab-count">'+count+'</span>'+
+      '<button class="tab-zip" title="Download ZIP">⬇</button>'+
+      '<button class="tab-del" title="Delete folder">🗑</button>';
+    tab.querySelector('.tab-name').addEventListener('click',()=>applyFilter(p));
+    tab.querySelector('.tab-zip').addEventListener('click',e=>{e.stopPropagation();downloadFolder(p);});
+    tab.querySelector('.tab-del').addEventListener('click',e=>{e.stopPropagation();confirmDeleteFolder(p);});
+    wrap.appendChild(tab);
+  });
+}
+
+// ── Filter ──
+function applyFilter(filter,silent=false){
+  activeFilter=filter;
+  visibleCount=PAGE_SIZE;
+
+  // Sidebar
+  document.getElementById('btn-all').className='sidebar-tab-all'+(filter==='all'?' active':'');
+  document.querySelectorAll('.product-tab').forEach(t=>t.classList.toggle('active',t.dataset.product===filter));
+
+  // Slider thumbs
+  document.querySelectorAll('.thumb-card').forEach(c=>c.classList.toggle('active',c.dataset.product===filter));
+
+  const search=document.getElementById('search').value.toLowerCase();
+  filteredImages=allImages.filter(img=>{
+    const mf=filter==='all'||img.product===filter;
+    const ms=!search||img.product.toLowerCase().includes(search)||img.filename.toLowerCase().includes(search);
+    return mf&&ms;
+  });
+  renderGrid();
+  const prods=[...new Set(filteredImages.map(i=>i.product))];
+  document.getElementById('stats-text').textContent=
+    filteredImages.length+' image'+(filteredImages.length!==1?'s':'')+
+    ' · '+prods.length+' product'+(prods.length!==1?'s':'');
+
+  // Scroll content back to top
+  document.getElementById('content-area').scrollTop=0;
+}
+
+// ── Load More ──
+function loadMore(){
+  visibleCount=Math.min(visibleCount+PAGE_SIZE, filteredImages.length);
+  renderGrid(true);
+}
+
+// ── Grid ──
+function renderGrid(append=false){
+  const grid=document.getElementById('grid');
+  const visible=filteredImages.slice(0,visibleCount);
+  const remaining=filteredImages.length-visibleCount;
+
+  if(!filteredImages.length){
+    grid.innerHTML='<div class="empty"><div class="empty-icon">✦</div><h3>No images found</h3><p>Try a different filter or search.</p></div>';
+    document.getElementById('load-more-wrap').style.display='none';
+    return;
+  }
+
+  grid.innerHTML=visible.map((img,idx)=>{
+    const label=fmt(img.product);
+    const isNew=highlightProduct&&img.product===highlightProduct;
+    const checked=selectedSet.has(img.product+'/'+img.filename);
+    return '<div class="card'+(checked?' selected':'')+'" data-idx="'+idx+'" style="animation-delay:'+Math.min(idx*0.02,0.4)+'s">'+
+      '<div class="card-checkbox'+(checked?' checked':'')+'" data-idx="'+idx+'">'+(checked?'✓':'')+'</div>'+
+      '<div class="card-img-wrap">'+
+      '<img src="/images/'+img.product+'/'+img.filename+'" alt="'+label+'" loading="lazy">'+
+      (isNew?'<div class="card-badge new-badge">New</div>':'')+
+      '<div class="card-actions">'+
+      '<button class="act-btn" onclick="openLightbox('+idx+',event)">⊕ View</button>'+
+      '<button class="act-btn dl" onclick="downloadSingle(\''+img.product+'\',\''+img.filename+'\',event)">⬇</button>'+
+      '<button class="act-btn del" onclick="confirmDeleteImage(\''+img.product+'\',\''+img.filename+'\',event)">🗑</button>'+
+      '</div></div>'+
+      '<div class="card-info"><div class="card-product">'+label+'</div><div class="card-meta">'+img.filename+'</div></div>'+
+      '</div>';
+  }).join('');
+
+  grid.querySelectorAll('.card').forEach(card=>{
+    card.addEventListener('click',e=>{
+      if(e.target.closest('.card-checkbox')||e.target.closest('.act-btn'))return;
+      openLightbox(parseInt(card.dataset.idx),e);
+    });
+  });
+  grid.querySelectorAll('.card-checkbox').forEach(cb=>{
+    cb.addEventListener('click',e=>{e.stopPropagation();toggleSelect(parseInt(cb.dataset.idx));});
+  });
+
+  // Load more
+  const lmw=document.getElementById('load-more-wrap');
+  if(remaining>0){
+    lmw.style.display='block';
+    document.getElementById('load-more-hint').textContent=remaining+' more image'+(remaining!==1?'s':'')+' not shown';
+  } else {
+    lmw.style.display='none';
+  }
+}
+
+// ── Selection ──
+function toggleSelect(idx){
+  const img=filteredImages[idx];
+  const key=img.product+'/'+img.filename;
+  if(selectedSet.has(key))selectedSet.delete(key);else selectedSet.add(key);
+  updateSelUI();renderGrid();
+}
+function selectAll(){filteredImages.forEach(img=>selectedSet.add(img.product+'/'+img.filename));updateSelUI();renderGrid();}
+function clearSelection(){selectedSet.clear();updateSelUI();renderGrid();}
+function updateSelUI(){
+  const c=selectedSet.size;
+  document.getElementById('sel-num').textContent=c;
+  document.getElementById('sel-toolbar').classList.toggle('visible',c>0);
+}
+
+// ── Confirm dialog ──
+function openDialog(icon,title,msg,onConfirm){
+  document.getElementById('dialog-icon').textContent=icon;
+  document.getElementById('dialog-title').textContent=title;
+  document.getElementById('dialog-msg').textContent=msg;
+  document.getElementById('dialog-confirm').onclick=()=>{closeDialog();onConfirm();};
+  document.getElementById('confirm-dialog').classList.add('open');
+}
+function closeDialog(){document.getElementById('confirm-dialog').classList.remove('open');}
+
+// ── Delete ──
+function confirmDeleteImage(product,filename,e){
+  if(e)e.stopPropagation();
+  openDialog('🗑','Delete this image?',
+    'Permanently delete "'+filename+'" from '+fmt(product)+'? This cannot be undone.',
+    ()=>deleteImage(product,filename)
+  );
+}
+async function deleteImage(product,filename){
+  try{
+    const r=await fetch('/api/delete/image',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({product,filename})});
+    if(!r.ok)throw new Error();
+    selectedSet.delete(product+'/'+filename);
+    showToast('✓ '+filename+' deleted');
+    await loadData(true); updateSelUI();
+  }catch(e){showToast('Delete failed','error');}
+}
+function deleteSelected(){
+  if(!selectedSet.size)return;
+  openDialog('🗑','Delete '+selectedSet.size+' images?',
+    'Permanently delete '+selectedSet.size+' selected image'+(selectedSet.size!==1?'s':'')+'. This cannot be undone.',
+    async()=>{
+      let n=0;
+      for(const key of [...selectedSet]){
+        const [p,f]=key.split('/');
+        try{const r=await fetch('/api/delete/image',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({product:p,filename:f})});if(r.ok){selectedSet.delete(key);n++;}}catch(e){}
+      }
+      showToast('✓ '+n+' image'+(n!==1?'s':'')+' deleted');
+      await loadData(true); updateSelUI();
+    }
+  );
+}
+function confirmDeleteFolder(product){
+  const count=allImages.filter(i=>i.product===product).length;
+  openDialog('🗑','Delete entire folder?',
+    'Delete all '+count+' images in "'+fmt(product)+'"? This cannot be undone.',
+    async()=>{
+      try{
+        const r=await fetch('/api/delete/folder/'+product,{method:'DELETE'});
+        if(!r.ok)throw new Error();
+        showToast('✓ '+fmt(product)+' deleted');
+        if(activeFilter===product)applyFilter('all');
+        await loadData(true);
+      }catch(e){showToast('Delete failed','error');}
+    }
+  );
+}
+
+// ── Downloads ──
+function downloadSingle(product,filename,e){
+  if(e)e.stopPropagation();
+  const a=document.createElement('a');a.href='/images/'+product+'/'+filename;a.download=filename;a.click();
+  showToast('Downloading '+filename+'…');
+}
+async function downloadFolder(product){
+  showToast('Preparing ZIP for '+fmt(product)+'…','',5000);
+  try{
+    const r=await fetch('/api/download/folder/'+product);
+    if(!r.ok)throw new Error();
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=product+'.zip';a.click();
+    URL.revokeObjectURL(url);
+    showToast('✓ '+fmt(product)+'.zip downloaded');
+  }catch(e){showToast('Download failed','error');}
+}
+async function downloadSelected(){
+  if(!selectedSet.size)return;
+  showToast('Preparing ZIP for '+selectedSet.size+' images…','',6000);
+  try{
+    const r=await fetch('/api/download/selected',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files:[...selectedSet]})});
+    if(!r.ok)throw new Error();
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='maro-shopping-selection.zip';a.click();
+    URL.revokeObjectURL(url);
+    showToast('✓ '+selectedSet.size+' images downloaded');
+    clearSelection();
+  }catch(e){showToast('Download failed','error');}
+}
+
+// ── Lightbox ──
+function openLightbox(idx,e){if(e)e.stopPropagation();currentLbIndex=idx;updateLightbox();document.getElementById('lightbox').classList.add('open');document.body.style.overflow='hidden';}
+function updateLightbox(){
+  const img=filteredImages[currentLbIndex];
+  document.getElementById('lb-img').src='/images/'+img.product+'/'+img.filename;
+  document.getElementById('lb-product').textContent=fmt(img.product);
+  document.getElementById('lb-counter').textContent=(currentLbIndex+1)+' of '+filteredImages.length;
+}
+function closeLightbox(){document.getElementById('lightbox').classList.remove('open');document.body.style.overflow='';}
+function downloadLightboxImage(){const img=filteredImages[currentLbIndex];downloadSingle(img.product,img.filename,null);}
+function deleteLightboxImage(){const img=filteredImages[currentLbIndex];closeLightbox();confirmDeleteImage(img.product,img.filename,null);}
+
+document.getElementById('lb-close').addEventListener('click',closeLightbox);
+document.getElementById('lightbox').addEventListener('click',e=>{if(e.target.id==='lightbox')closeLightbox();});
+document.getElementById('lb-prev').addEventListener('click',e=>{e.stopPropagation();currentLbIndex=(currentLbIndex-1+filteredImages.length)%filteredImages.length;updateLightbox();});
+document.getElementById('lb-next').addEventListener('click',e=>{e.stopPropagation();currentLbIndex=(currentLbIndex+1)%filteredImages.length;updateLightbox();});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(document.getElementById('confirm-dialog').classList.contains('open'))closeDialog();else closeLightbox();}
+  if(document.getElementById('lightbox').classList.contains('open')){
+    if(e.key==='ArrowLeft'){currentLbIndex=(currentLbIndex-1+filteredImages.length)%filteredImages.length;updateLightbox();}
+    if(e.key==='ArrowRight'){currentLbIndex=(currentLbIndex+1)%filteredImages.length;updateLightbox();}
+  }
+});
+
+document.getElementById('search').addEventListener('input',()=>applyFilter(activeFilter));
+
+loadData();
+setInterval(()=>loadData(true),30000);
+</script>
+</body>
+</html>
+
