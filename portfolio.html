@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
 <title>MARO.SHOPPING — Product Portfolio</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -267,6 +268,22 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
 </head>
 <body>
 
+<div id="passcode-screen" style="display:none;position:fixed;inset:0;background:#1a1a1a;z-index:9000;align-items:center;justify-content:center;">
+  <div style="text-align:center;max-width:320px;padding:48px 32px;width:100%;">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:300;color:#f5f0e8;letter-spacing:0.1em;margin-bottom:6px;">MARO.SHOPPING</div>
+    <div style="font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#c4a992;margin-bottom:44px;">Private Portfolio</div>
+    <input type="password" id="pc-input" placeholder="Enter passcode"
+      autocomplete="current-password"
+      style="width:100%;background:transparent;border:none;border-bottom:1px solid #8b6f5e;color:#f5f0e8;padding:10px 4px;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;margin-bottom:20px;text-align:center;letter-spacing:0.14em;">
+    <button onclick="submitPasscode()"
+      style="width:100%;background:#8b6f5e;border:none;color:#f5f0e8;padding:13px;font-family:'DM Sans',sans-serif;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;cursor:pointer;transition:background 0.2s;"
+      onmouseover="this.style.background='#7a6050'" onmouseout="this.style.background='#8b6f5e'">
+      Enter
+    </button>
+    <div id="pc-error" style="color:#ff9988;font-size:12px;margin-top:14px;min-height:18px;transition:opacity 0.3s;opacity:0;"></div>
+  </div>
+</div>
+
 <div id="loading"><div class="spinner"></div><div class="loading-text">Loading collection…</div></div>
 <div id="toast"></div>
 
@@ -390,6 +407,7 @@ const PAGE_SIZE = 24;
 let allImages=[], filteredImages=[], visibleCount=PAGE_SIZE;
 let selectedSet=new Set(), currentLbIndex=0, activeFilter='all';
 let sliderOffset=0, sliderItemW=192, sliderProducts=[];
+let displayNames={};
 const urlParams=new URLSearchParams(window.location.search);
 const highlightProduct=urlParams.get('product');
 
@@ -399,6 +417,44 @@ function showToast(msg,type='',dur=3000){
   clearTimeout(t._t); t._t=setTimeout(()=>t.className='',dur);
 }
 function fmt(h){return h.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
+function dn(h){return displayNames[h]||fmt(h);}
+
+// ── Passcode ──
+async function checkPasscode(){
+  if(sessionStorage.getItem('maro_unlocked')==='1') return true;
+  try{
+    const r=await fetch('/api/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passcode:''})});
+    const d=await r.json();
+    if(d.ok){sessionStorage.setItem('maro_unlocked','1');return true;}
+  }catch(e){}
+  const ps=document.getElementById('passcode-screen');
+  ps.style.display='flex';
+  document.getElementById('loading').classList.add('hidden');
+  setTimeout(()=>document.getElementById('pc-input').focus(),80);
+  return false;
+}
+async function submitPasscode(){
+  const val=document.getElementById('pc-input').value;
+  try{
+    const r=await fetch('/api/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passcode:val})});
+    const d=await r.json();
+    if(d.ok){
+      sessionStorage.setItem('maro_unlocked','1');
+      document.getElementById('passcode-screen').style.display='none';
+      document.getElementById('loading').style.opacity='1';
+      document.getElementById('loading').classList.remove('hidden');
+      loadData();
+      return;
+    }
+  }catch(e){}
+  const err=document.getElementById('pc-error');
+  err.textContent='Incorrect passcode — please try again.';
+  err.style.opacity='1';
+  document.getElementById('pc-input').value='';
+  document.getElementById('pc-input').focus();
+  setTimeout(()=>{err.style.opacity='0';},3500);
+}
+document.getElementById('pc-input').addEventListener('keydown',e=>{if(e.key==='Enter')submitPasscode();});
 
 // ── Load ──
 async function loadData(silent=false){
@@ -406,6 +462,7 @@ async function loadData(silent=false){
     const r=await fetch('/api/images');
     const d=await r.json();
     allImages=d.images||[];
+    displayNames=d.display_names||{};
     buildSidebar(d.newest_product);
     buildSlider(d.newest_product);
     applyFilter(activeFilter,true);
@@ -416,7 +473,7 @@ async function loadData(silent=false){
     if(!silent) document.getElementById('loading').classList.add('hidden');
     if(highlightProduct){
       document.getElementById('new-banner').classList.add('visible');
-      document.getElementById('new-banner-text').textContent='✦ New arrival added: '+fmt(highlightProduct);
+      document.getElementById('new-banner-text').textContent='✦ New arrival added: '+dn(highlightProduct);
     }
   }catch(e){
     if(!silent){document.getElementById('loading').classList.add('hidden');showToast('Failed to load','error');}
@@ -443,10 +500,10 @@ function buildSlider(newestProduct){
     card.dataset.product=p;
     card.innerHTML=
       '<div class="thumb-img-wrap">'+
-      '<img src="/images/'+p+'/'+thumb.filename+'" alt="'+fmt(p)+'" loading="lazy">'+
+      '<img src="/images/'+p+'/'+thumb.filename+'" alt="'+dn(p)+'" loading="lazy">'+
       '</div>'+
       '<div class="thumb-label">'+
-      '<div class="thumb-name">'+fmt(p)+'</div>'+
+      '<div class="thumb-name">'+dn(p)+'</div>'+
       '<div class="thumb-count">'+count+' image'+(count!==1?'s':'')+(isNew?' ✦':'')+'</div>'+
       '</div>'+
       '<div class="thumb-active-bar"></div>';
@@ -490,7 +547,7 @@ function buildSidebar(newestProduct){
     tab.className='product-tab'+(activeFilter===p?' active':'');
     tab.dataset.product=p;
     tab.innerHTML=
-      '<button class="tab-name" title="'+fmt(p)+'">'+(isNew?'✦ ':'')+fmt(p)+'</button>'+
+      '<button class="tab-name" title="'+dn(p)+'">'+(isNew?'✦ ':'')+dn(p)+'</button>'+
       '<span class="tab-count">'+count+'</span>'+
       '<button class="tab-zip" title="Download ZIP">⬇</button>'+
       '<button class="tab-del" title="Delete folder">🗑</button>';
@@ -516,7 +573,7 @@ function applyFilter(filter,silent=false){
   const search=document.getElementById('search').value.toLowerCase();
   filteredImages=allImages.filter(img=>{
     const mf=filter==='all'||img.product===filter;
-    const ms=!search||img.product.toLowerCase().includes(search)||img.filename.toLowerCase().includes(search);
+    const ms=!search||img.product.toLowerCase().includes(search)||img.filename.toLowerCase().includes(search)||(dn(img.product)).toLowerCase().includes(search);
     return mf&&ms;
   });
   renderGrid();
@@ -550,7 +607,7 @@ function renderGrid(append=false){
   }
 
   grid.innerHTML=visible.map((img,idx)=>{
-    const label=fmt(img.product);
+    const label=dn(img.product);
     const isNew=highlightProduct&&img.product===highlightProduct;
     const checked=selectedSet.has(img.product+'/'+img.filename);
     return '<div class="card'+(checked?' selected':'')+'" data-idx="'+idx+'" style="animation-delay:'+Math.min(idx*0.02,0.4)+'s">'+
@@ -616,7 +673,7 @@ function closeDialog(){document.getElementById('confirm-dialog').classList.remov
 function confirmDeleteImage(product,filename,e){
   if(e)e.stopPropagation();
   openDialog('🗑','Delete this image?',
-    'Permanently delete "'+filename+'" from '+fmt(product)+'? This cannot be undone.',
+    'Permanently delete "'+filename+'" from '+dn(product)+'? This cannot be undone.',
     ()=>deleteImage(product,filename)
   );
 }
@@ -647,12 +704,12 @@ function deleteSelected(){
 function confirmDeleteFolder(product){
   const count=allImages.filter(i=>i.product===product).length;
   openDialog('🗑','Delete entire folder?',
-    'Delete all '+count+' images in "'+fmt(product)+'"? This cannot be undone.',
+    'Delete all '+count+' images in "'+dn(product)+'"? This cannot be undone.',
     async()=>{
       try{
         const r=await fetch('/api/delete/folder/'+product,{method:'DELETE'});
         if(!r.ok)throw new Error();
-        showToast('✓ '+fmt(product)+' deleted');
+        showToast('✓ '+dn(product)+' deleted');
         if(activeFilter===product)applyFilter('all');
         await loadData(true);
       }catch(e){showToast('Delete failed','error');}
@@ -667,7 +724,7 @@ function downloadSingle(product,filename,e){
   showToast('Downloading '+filename+'…');
 }
 async function downloadFolder(product){
-  showToast('Preparing ZIP for '+fmt(product)+'…','',5000);
+  showToast('Preparing ZIP for '+dn(product)+'…','',5000);
   try{
     const r=await fetch('/api/download/folder/'+product);
     if(!r.ok)throw new Error();
@@ -675,7 +732,7 @@ async function downloadFolder(product){
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=product+'.zip';a.click();
     URL.revokeObjectURL(url);
-    showToast('✓ '+fmt(product)+'.zip downloaded');
+    showToast('✓ '+dn(product)+'.zip downloaded');
   }catch(e){showToast('Download failed','error');}
 }
 async function downloadSelected(){
@@ -698,7 +755,7 @@ function openLightbox(idx,e){if(e)e.stopPropagation();currentLbIndex=idx;updateL
 function updateLightbox(){
   const img=filteredImages[currentLbIndex];
   document.getElementById('lb-img').src='/images/'+img.product+'/'+img.filename;
-  document.getElementById('lb-product').textContent=fmt(img.product);
+  document.getElementById('lb-product').textContent=dn(img.product);
   document.getElementById('lb-counter').textContent=(currentLbIndex+1)+' of '+filteredImages.length;
 }
 function closeLightbox(){document.getElementById('lightbox').classList.remove('open');document.body.style.overflow='';}
@@ -748,8 +805,8 @@ document.getElementById('lightbox').addEventListener('touchend',e=>{
   }
 },{passive:true});
 
-loadData();
-setInterval(()=>loadData(true),30000);
+checkPasscode().then(ok=>{ if(ok) loadData(); });
+setInterval(()=>{ if(sessionStorage.getItem('maro_unlocked')==='1') loadData(true); },30000);
 </script>
 </body>
 </html>

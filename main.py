@@ -3,8 +3,10 @@ Steps New York – Resend Inbound Webhook Image Scraper + Portfolio
 """
 
 import io
+import json
 import logging
 import os
+import random
 import zipfile
 from pathlib import Path
 from typing import List, Optional
@@ -31,7 +33,51 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 RESEND_API_KEY     = os.environ.get("RESEND_API_KEY", "")
 NOTIFY_EMAIL       = os.environ.get("NOTIFY_EMAIL", "pjariwala@episolve.com")
 PORTFOLIO_BASE_URL = os.environ.get("PORTFOLIO_BASE_URL", "")
+PORTFOLIO_PASSCODE = os.environ.get("PORTFOLIO_PASSCODE", "")
 IMAGE_EXTS         = {".jpg", ".jpeg", ".png", ".webp"}
+
+NAME_MAP_FILE = OUTPUT_DIR / "name_map.json"
+
+# Pool of female names and feminine adjectives for product aliases
+_FEMALE_NAMES = [
+    "Alessa", "Amara", "Aria", "Aurora", "Ava", "Bianca", "Camille",
+    "Celeste", "Chloe", "Clara", "Daphne", "Elena", "Elise", "Emma",
+    "Fiona", "Gabrielle", "Isla", "Ivy", "Jade", "Juliet", "Lara",
+    "Layla", "Luna", "Mia", "Nadia", "Natalia", "Nina", "Olivia",
+    "Petra", "Phoebe", "Rosa", "Sabrina", "Serena", "Simone", "Sofia",
+    "Stella", "Valentina", "Vera", "Violet", "Zara", "Zoe",
+]
+_FEMALE_ADJECTIVES = [
+    "Blossom", "Breeze", "Cashmere", "Chic", "Classic", "Crystal",
+    "Dainty", "Delicate", "Dreamy", "Elegant", "Floral", "Graceful",
+    "Golden", "Ivory", "Lace", "Luxe", "Midnight", "Misty", "Pearl",
+    "Radiant", "Satin", "Sheer", "Silk", "Soft", "Velvet", "Whisper",
+]
+
+
+def load_name_map() -> dict:
+    if NAME_MAP_FILE.exists():
+        try:
+            return json.loads(NAME_MAP_FILE.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def save_name_map(name_map: dict) -> None:
+    NAME_MAP_FILE.write_text(json.dumps(name_map, indent=2))
+
+
+def get_or_create_display_name(handle: str) -> str:
+    """Return the alias for *handle*, creating one if it doesn't exist yet."""
+    name_map = load_name_map()
+    if handle in name_map:
+        return name_map[handle]
+    display_name = f"{random.choice(_FEMALE_NAMES)} {random.choice(_FEMALE_ADJECTIVES)}"
+    name_map[handle] = display_name
+    save_name_map(name_map)
+    log.info("Assigned display name '%s' to handle '%s'", display_name, handle)
+    return display_name
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Steps NY Image Scraper", version="4.0.0")
@@ -66,7 +112,20 @@ async def list_images():
                 "filename": img.name,
                 "product_index": folder_idx,
             })
-    return {"images": images, "newest_product": newest_product}
+    return {"images": images, "newest_product": newest_product, "display_names": load_name_map()}
+
+
+# ── Passcode unlock ───────────────────────────────────────────────────────────
+class UnlockRequest(BaseModel):
+    passcode: str
+
+@app.post("/api/unlock")
+async def unlock(body: UnlockRequest):
+    if not PORTFOLIO_PASSCODE:
+        return JSONResponse({"ok": True})
+    if body.passcode == PORTFOLIO_PASSCODE:
+        return JSONResponse({"ok": True})
+    return JSONResponse({"ok": False}, status_code=401)
 
 
 # ── Download: single folder as ZIP ───────────────────────────────────────────
@@ -287,6 +346,7 @@ def handle_email(payload: dict) -> None:
             process_product_url(url, OUTPUT_DIR)
 
             if not already_existed and folder.exists():
+                get_or_create_display_name(handle)
                 send_notification_email(handle)
         except Exception as exc:
             log.error("Failed processing %s: %s", url, exc, exc_info=True)
