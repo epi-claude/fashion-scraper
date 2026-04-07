@@ -116,16 +116,24 @@ def _list_images_local():
     )
     newest_product = folders[0].name if folders else None
     images = []
+    folder_sizes: dict[str, int] = {}
+    total_size = 0
     for folder_idx, folder in enumerate(folders):
         imgs = sorted([f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTS])
+        folder_sz = 0
         for img in imgs:
+            sz = img.stat().st_size
+            folder_sz += sz
+            total_size += sz
             images.append({
                 "product": folder.name,
                 "filename": img.name,
                 "product_index": folder_idx,
                 "url": f"/images/{folder.name}/{img.name}",
+                "size": sz,
             })
-    return {"images": images, "newest_product": newest_product, "display_names": load_name_map()}
+        folder_sizes[folder.name] = folder_sz
+    return {"images": images, "newest_product": newest_product, "display_names": load_name_map(), "folder_sizes": folder_sizes, "total_size": total_size}
 
 
 def _list_images_r2():
@@ -151,7 +159,12 @@ def _list_images_r2():
     newest_product = sorted_products[0] if sorted_products else None
 
     images = []
+    folder_sizes: dict[str, int] = {}
+    total_size = 0
     for folder_idx, product in enumerate(sorted_products):
+        folder_sz = sum(o["size"] for o in product_objects[product])
+        folder_sizes[product] = folder_sz
+        total_size += folder_sz
         for obj in sorted(product_objects[product], key=lambda o: o["key"]):
             filename = obj["key"].split("/", 1)[1]
             images.append({
@@ -159,8 +172,9 @@ def _list_images_r2():
                 "filename": filename,
                 "product_index": folder_idx,
                 "url": r2.object_url(obj["key"]),
+                "size": obj["size"],
             })
-    return {"images": images, "newest_product": newest_product, "display_names": load_name_map()}
+    return {"images": images, "newest_product": newest_product, "display_names": load_name_map(), "folder_sizes": folder_sizes, "total_size": total_size}
 
 
 # ── Passcode unlock ───────────────────────────────────────────────────────────

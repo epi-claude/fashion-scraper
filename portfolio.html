@@ -188,6 +188,17 @@ header { background: var(--charcoal); color: var(--cream); padding: 0 32px; heig
 
 footer { background: var(--charcoal); color: var(--muted); text-align: center; padding: 16px; font-size: 11px; letter-spacing: 0.08em; flex-shrink: 0; }
 
+/* ── Storage bar ── */
+#storage-bar { background: #111; color: rgba(255,255,255,0.5); font-size: 11px; letter-spacing: 0.04em; padding: 0 20px; height: 28px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; position: sticky; top: 60px; z-index: 199; white-space: nowrap; }
+.storage-label { color: rgba(255,255,255,0.3); }
+#storage-used-text { color: rgba(255,255,255,0.75); font-weight: 500; }
+.storage-track { width: 90px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; flex-shrink: 0; overflow: hidden; }
+#storage-fill { height: 100%; background: var(--accent-light); border-radius: 2px; width: 0%; transition: width 0.6s ease; }
+#storage-fill.warn { background: #ff9988; }
+#storage-pct-text { color: rgba(255,255,255,0.6); }
+#storage-free-text { color: rgba(255,255,255,0.38); }
+#storage-free-text.warn { color: #ff9988; }
+
 /* ── Hamburger (mobile only) ── */
 .hamburger { display: none; background: none; border: none; color: var(--cream); font-size: 22px; cursor: pointer; padding: 8px; line-height: 1; flex-shrink: 0; }
 
@@ -263,6 +274,11 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
 
   /* Footer */
   footer { padding: 14px 12px; }
+
+  /* Storage bar */
+  #storage-bar { padding: 0 12px; gap: 7px; font-size: 10px; }
+  .storage-track { width: 54px; }
+  .storage-label { display: none; }
 }
 </style>
 </head>
@@ -327,6 +343,14 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
   </div>
 </header>
 
+<div id="storage-bar">
+  <span class="storage-label">Storage</span>
+  <span id="storage-used-text">—</span>
+  <div class="storage-track"><div id="storage-fill"></div></div>
+  <span id="storage-pct-text">—</span>
+  <span id="storage-free-text"></span>
+</div>
+
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
 <div class="layout">
@@ -385,7 +409,7 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
   </main>
 </div>
 
-<footer>MARO.SHOPPING · Image Portfolio · Auto-updated on new arrivals</footer>
+<footer>© 2026 MARO.SHOPPING · Image Portfolio</footer>
 
 <div id="lightbox">
   <button class="lb-close" id="lb-close">×</button>
@@ -404,12 +428,39 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
 
 <script>
 const PAGE_SIZE = 24;
+const R2_FREE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB free tier
 let allImages=[], filteredImages=[], visibleCount=PAGE_SIZE;
 let selectedSet=new Set(), currentLbIndex=0, activeFilter='all';
 let sliderOffset=0, sliderItemW=192, sliderProducts=[];
-let displayNames={};
+let displayNames={}, folderSizes={}, totalSize=0;
 const urlParams=new URLSearchParams(window.location.search);
 const highlightProduct=urlParams.get('product');
+
+function fmtBytes(b){
+  if(b==null||isNaN(b))return '—';
+  if(b<1024)return b+' B';
+  if(b<1024*1024)return (b/1024).toFixed(1)+' KB';
+  if(b<1024*1024*1024)return (b/1024/1024).toFixed(1)+' MB';
+  return (b/1024/1024/1024).toFixed(2)+' GB';
+}
+
+function updateStorageBar(){
+  const pct=Math.min(100,(totalSize/R2_FREE_BYTES)*100);
+  const freeBytes=Math.max(0,R2_FREE_BYTES-totalSize);
+  const fill=document.getElementById('storage-fill');
+  fill.style.width=pct.toFixed(1)+'%';
+  fill.className=pct>=90?'warn':'';
+  document.getElementById('storage-used-text').textContent=fmtBytes(totalSize)+' used';
+  document.getElementById('storage-pct-text').textContent=pct.toFixed(1)+'% of 10 GB';
+  const freeEl=document.getElementById('storage-free-text');
+  if(freeBytes<=0){
+    freeEl.textContent='⚠ Billing threshold reached';
+    freeEl.className='warn';
+  } else {
+    freeEl.textContent='· '+fmtBytes(freeBytes)+' before billing';
+    freeEl.className='';
+  }
+}
 
 function showToast(msg,type='',dur=3000){
   const t=document.getElementById('toast');
@@ -462,9 +513,12 @@ async function loadData(silent=false){
     const d=await r.json();
     allImages=d.images||[];
     displayNames=d.display_names||{};
+    folderSizes=d.folder_sizes||{};
+    totalSize=d.total_size||0;
     buildSidebar(d.newest_product);
     buildSlider(d.newest_product);
     applyFilter(activeFilter,true);
+    updateStorageBar();
     document.getElementById('total-count').textContent=allImages.length;
     const flds=[...new Set(allImages.map(i=>i.product))];
     document.getElementById('folder-count').textContent=flds.length;
@@ -547,7 +601,7 @@ function buildSidebar(newestProduct){
     tab.dataset.product=p;
     tab.innerHTML=
       '<button class="tab-name" title="'+dn(p)+'">'+(isNew?'✦ ':'')+dn(p)+'</button>'+
-      '<span class="tab-count">'+count+'</span>'+
+      '<span class="tab-count" title="'+fmtBytes(folderSizes[p]||0)+'">'+count+' · '+fmtBytes(folderSizes[p]||0)+'</span>'+
       '<button class="tab-zip" title="Download ZIP">⬇</button>'+
       '<button class="tab-del" title="Delete folder">🗑</button>';
     tab.querySelector('.tab-name').addEventListener('click',()=>applyFilter(p));
@@ -619,7 +673,7 @@ function renderGrid(append=false){
       '<button class="act-btn dl" onclick="downloadSingle(\''+img.product+'\',\''+img.filename+'\',event)">⬇</button>'+
       '<button class="act-btn del" onclick="confirmDeleteImage(\''+img.product+'\',\''+img.filename+'\',event)">🗑</button>'+
       '</div></div>'+
-      '<div class="card-info"><div class="card-product">'+label+'</div><div class="card-meta">'+img.filename+'</div></div>'+
+      '<div class="card-info"><div class="card-product">'+label+'</div><div class="card-meta">'+img.filename+(img.size?' · '+fmtBytes(img.size):'')+'</div></div>'+
       '</div>';
   }).join('');
 
