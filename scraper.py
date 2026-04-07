@@ -23,6 +23,8 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
+import r2
+
 log = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -193,6 +195,10 @@ def download_image(url: str, dest_folder: Path, index: int) -> Optional[Path]:
                 fh.write(chunk)
 
         log.info("  ✓ Saved %s (%d bytes)", filename.name, filename.stat().st_size)
+
+        if r2.is_configured():
+            r2.upload_file(filename, f"{dest_folder.name}/{filename.name}")
+
         return filename
 
     except requests.RequestException as exc:

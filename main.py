@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from scraper import process_product_url, extract_product_urls
+import r2
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -56,6 +57,8 @@ _FEMALE_ADJECTIVES = [
 
 
 def load_name_map() -> dict:
+    if r2.is_configured():
+        return r2.get_name_map()
     if NAME_MAP_FILE.exists():
         try:
             return json.loads(NAME_MAP_FILE.read_text())
@@ -65,7 +68,10 @@ def load_name_map() -> dict:
 
 
 def save_name_map(name_map: dict) -> None:
-    NAME_MAP_FILE.write_text(json.dumps(name_map, indent=2))
+    if r2.is_configured():
+        r2.put_name_map(name_map)
+    else:
+        NAME_MAP_FILE.write_text(json.dumps(name_map, indent=2))
 
 
 def get_or_create_display_name(handle: str) -> str:
@@ -97,6 +103,12 @@ async def portfolio_alt():
 # ── Images API ────────────────────────────────────────────────────────────────
 @app.get("/api/images")
 async def list_images():
+    if r2.is_configured():
+        return _list_images_r2()
+    return _list_images_local()
+
+
+def _list_images_local():
     folders = sorted(
         [f for f in OUTPUT_DIR.iterdir() if f.is_dir()],
         key=lambda f: f.stat().st_mtime,
@@ -111,6 +123,42 @@ async def list_images():
                 "product": folder.name,
                 "filename": img.name,
                 "product_index": folder_idx,
+                "url": f"/images/{folder.name}/{img.name}",
+            })
+    return {"images": images, "newest_product": newest_product, "display_names": load_name_map()}
+
+
+def _list_images_r2():
+    objects = r2.list_objects()
+    # Filter to image files only, group by product (top-level folder)
+    image_exts = IMAGE_EXTS
+    product_objects: dict[str, list] = {}
+    for obj in objects:
+        parts = obj["key"].split("/", 1)
+        if len(parts) != 2:
+            continue
+        product, filename = parts
+        if Path(filename).suffix.lower() not in image_exts:
+            continue
+        product_objects.setdefault(product, []).append(obj)
+
+    # Sort products newest-first by their most recent object modification time
+    sorted_products = sorted(
+        product_objects.keys(),
+        key=lambda p: max(o["last_modified"] for o in product_objects[p]),
+        reverse=True,
+    )
+    newest_product = sorted_products[0] if sorted_products else None
+
+    images = []
+    for folder_idx, product in enumerate(sorted_products):
+        for obj in sorted(product_objects[product], key=lambda o: o["key"]):
+            filename = obj["key"].split("/", 1)[1]
+            images.append({
+                "product": product,
+                "filename": filename,
+                "product_index": folder_idx,
+                "url": r2.object_url(obj["key"]),
             })
     return {"images": images, "newest_product": newest_product, "display_names": load_name_map()}
 
@@ -131,21 +179,45 @@ async def unlock(body: UnlockRequest):
 # ── Download: single folder as ZIP ───────────────────────────────────────────
 @app.get("/api/download/folder/{product}")
 async def download_folder(product: str):
+    if r2.is_configured():
+        return _download_folder_r2(product)
+    return _download_folder_local(product)
+
+
+def _download_folder_local(product: str):
     folder = OUTPUT_DIR / product
     if not folder.exists() or not folder.is_dir():
         return JSONResponse({"error": "Product not found"}, status_code=404)
-
     imgs = [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTS]
     if not imgs:
         return JSONResponse({"error": "No images found"}, status_code=404)
-
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for img in sorted(imgs):
             zf.write(img, arcname=img.name)
     buf.seek(0)
+    log.info("ZIP download (local): folder=%s  images=%d", product, len(imgs))
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{product}.zip"'},
+    )
 
-    log.info("ZIP download: folder=%s  images=%d", product, len(imgs))
+
+def _download_folder_r2(product: str):
+    objects = r2.list_objects(prefix=f"{product}/")
+    imgs = [o for o in objects if Path(o["key"].split("/", 1)[-1]).suffix.lower() in IMAGE_EXTS]
+    if not imgs:
+        return JSONResponse({"error": "Product not found"}, status_code=404)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for obj in sorted(imgs, key=lambda o: o["key"]):
+            data = r2.get_object_bytes(obj["key"])
+            if data:
+                filename = obj["key"].split("/", 1)[1]
+                zf.writestr(filename, data)
+    buf.seek(0)
+    log.info("ZIP download (R2): folder=%s  images=%d", product, len(imgs))
     return StreamingResponse(
         buf,
         media_type="application/zip",
@@ -167,11 +239,16 @@ async def download_selected(body: SelectedFiles):
             if len(parts) != 2:
                 continue
             product, filename = parts
-            img_path = OUTPUT_DIR / product / filename
-            if img_path.exists() and img_path.is_file():
-                # Include product name in the zip path to avoid filename collisions
-                zf.write(img_path, arcname=f"{product}/{filename}")
-                added += 1
+            if r2.is_configured():
+                data = r2.get_object_bytes(f"{product}/{filename}")
+                if data:
+                    zf.writestr(f"{product}/{filename}", data)
+                    added += 1
+            else:
+                img_path = OUTPUT_DIR / product / filename
+                if img_path.exists() and img_path.is_file():
+                    zf.write(img_path, arcname=f"{product}/{filename}")
+                    added += 1
     buf.seek(0)
 
     log.info("ZIP download: selected=%d files", added)
@@ -189,10 +266,20 @@ class DeleteImage(BaseModel):
 
 @app.delete("/api/delete/image")
 async def delete_image(body: DeleteImage):
+    if r2.is_configured():
+        key = f"{body.product}/{body.filename}"
+        if not r2.delete_object(key):
+            return JSONResponse({"error": "Delete failed"}, status_code=500)
+        # Also remove local copy if present
+        img_path = OUTPUT_DIR / body.product / body.filename
+        if img_path.exists():
+            img_path.unlink()
+        log.info("Deleted image (R2): %s", key)
+        return JSONResponse({"status": "deleted", "file": body.filename})
+
     img_path = OUTPUT_DIR / body.product / body.filename
     if not img_path.exists() or not img_path.is_file():
         return JSONResponse({"error": "Image not found"}, status_code=404)
-    # Safety check — must be inside OUTPUT_DIR
     try:
         img_path.resolve().relative_to(OUTPUT_DIR.resolve())
     except ValueError:
@@ -206,6 +293,15 @@ async def delete_image(body: DeleteImage):
 @app.delete("/api/delete/folder/{product}")
 async def delete_folder(product: str):
     import shutil
+    if r2.is_configured():
+        r2.delete_folder(product)
+        # Also clean up local copy if present
+        folder = OUTPUT_DIR / product
+        if folder.exists():
+            shutil.rmtree(folder)
+        log.info("Deleted folder (R2): %s", product)
+        return JSONResponse({"status": "deleted", "folder": product})
+
     folder = OUTPUT_DIR / product
     if not folder.exists() or not folder.is_dir():
         return JSONResponse({"error": "Folder not found"}, status_code=404)

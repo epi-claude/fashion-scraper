@@ -36,7 +36,12 @@ Resend inbound email
 |----------|---------|-------|
 | `RESEND_API_KEY` | — | Required for webhook auth and sending emails |
 | `NOTIFY_EMAIL` | `pjariwala@episolve.com` | Recipient for new-product notifications |
-| `PORTFOLIO_BASE_URL` | — | Fallback if tunnel URL can't be read from journald |
+| `PORTFOLIO_BASE_URL` | — | Public base URL for portfolio links in notification emails |
+| `R2_ENDPOINT_URL` | — | `https://<account_id>.r2.cloudflarestorage.com` |
+| `R2_ACCESS_KEY_ID` | — | R2 API token key ID |
+| `R2_SECRET_ACCESS_KEY` | — | R2 API token secret |
+| `R2_BUCKET_NAME` | — | R2 bucket name |
+| `R2_PUBLIC_URL` | — | Public URL base for serving images (e.g. `https://pub-xxx.r2.dev`) |
 
 ## Image scraping strategy (scraper.py)
 

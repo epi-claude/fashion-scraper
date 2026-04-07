@@ -499,7 +499,7 @@ function buildSlider(newestProduct){
     card.dataset.product=p;
     card.innerHTML=
       '<div class="thumb-img-wrap">'+
-      '<img src="/images/'+p+'/'+thumb.filename+'" alt="'+dn(p)+'" loading="lazy">'+
+      '<img src="'+(thumb.url||'/images/'+p+'/'+thumb.filename)+'" alt="'+dn(p)+'" loading="lazy">'+
       '</div>'+
       '<div class="thumb-label">'+
       '<div class="thumb-name">'+dn(p)+'</div>'+
@@ -612,7 +612,7 @@ function renderGrid(append=false){
     return '<div class="card'+(checked?' selected':'')+'" data-idx="'+idx+'" style="animation-delay:'+Math.min(idx*0.02,0.4)+'s">'+
       '<div class="card-checkbox'+(checked?' checked':'')+'" data-idx="'+idx+'">'+(checked?'✓':'')+'</div>'+
       '<div class="card-img-wrap">'+
-      '<img src="/images/'+img.product+'/'+img.filename+'" alt="'+label+'" loading="lazy">'+
+      '<img src="'+(img.url||'/images/'+img.product+'/'+img.filename)+'" alt="'+label+'" loading="lazy">'+
       (isNew?'<div class="card-badge new-badge">New</div>':'')+
       '<div class="card-actions">'+
       '<button class="act-btn" onclick="openLightbox('+idx+',event)">⊕ View</button>'+
@@ -719,7 +719,8 @@ function confirmDeleteFolder(product){
 // ── Downloads ──
 function downloadSingle(product,filename,e){
   if(e)e.stopPropagation();
-  const a=document.createElement('a');a.href='/images/'+product+'/'+filename;a.download=filename;a.click();
+  const img=allImages.find(i=>i.product===product&&i.filename===filename);
+  const a=document.createElement('a');a.href=img&&img.url?img.url:'/images/'+product+'/'+filename;a.download=filename;a.click();
   showToast('Downloading '+filename+'…');
 }
 async function downloadFolder(product){
@@ -753,7 +754,7 @@ async function downloadSelected(){
 function openLightbox(idx,e){if(e)e.stopPropagation();currentLbIndex=idx;updateLightbox();document.getElementById('lightbox').classList.add('open');document.body.style.overflow='hidden';}
 function updateLightbox(){
   const img=filteredImages[currentLbIndex];
-  document.getElementById('lb-img').src='/images/'+img.product+'/'+img.filename;
+  document.getElementById('lb-img').src=img.url||'/images/'+img.product+'/'+img.filename;
   document.getElementById('lb-product').textContent=dn(img.product);
   document.getElementById('lb-counter').textContent=(currentLbIndex+1)+' of '+filteredImages.length;
 }
