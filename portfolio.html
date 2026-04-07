@@ -441,7 +441,6 @@ async function submitPasscode(){
     if(d.ok){
       sessionStorage.setItem('maro_unlocked','1');
       document.getElementById('passcode-screen').style.display='none';
-      document.getElementById('loading').style.opacity='1';
       document.getElementById('loading').classList.remove('hidden');
       loadData();
       return;

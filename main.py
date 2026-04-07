@@ -28,7 +28,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ── Config ───────────────────────────────────────────────────────────────────
-OUTPUT_DIR         = Path("downloads")
+OUTPUT_DIR         = Path(os.environ.get("OUTPUT_DIR", "downloads"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 RESEND_API_KEY     = os.environ.get("RESEND_API_KEY", "")
 NOTIFY_EMAIL       = os.environ.get("NOTIFY_EMAIL", "pjariwala@episolve.com")
