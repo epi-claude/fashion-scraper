@@ -32,7 +32,8 @@ log = logging.getLogger(__name__)
 OUTPUT_DIR         = Path(os.environ.get("OUTPUT_DIR", "downloads"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 RESEND_API_KEY     = os.environ.get("RESEND_API_KEY", "")
-NOTIFY_EMAIL       = os.environ.get("NOTIFY_EMAIL", "pjariwala@episolve.com")
+NOTIFY_EMAIL       = os.environ.get("NOTIFY_EMAIL", "fashion@notify.e-dmm.com")
+FROM_EMAIL         = os.environ.get("FROM_EMAIL", "MARO.SHOPPING Portfolio <onboarding@resend.dev>")
 PORTFOLIO_BASE_URL = os.environ.get("PORTFOLIO_BASE_URL", "")
 PORTFOLIO_PASSCODE = os.environ.get("PORTFOLIO_PASSCODE", "")
 IMAGE_EXTS         = {".jpg", ".jpeg", ".png", ".webp"}
@@ -380,7 +381,7 @@ def send_notification_email(product_handle: str) -> None:
                 "Content-Type": "application/json",
             },
             json={
-                "from": "MARO.SHOPPING Portfolio <onboarding@resend.dev>",
+                "from": FROM_EMAIL,
                 "to": [NOTIFY_EMAIL],
                 "subject": f"New Product Ready: {product_label} — View & Download",
                 "html": html_body,
@@ -450,16 +451,30 @@ def handle_email(payload: dict) -> None:
     for url in urls:
         try:
             handle = url.rstrip("/").split("/")[-1]
-            folder = OUTPUT_DIR / handle
-            already_existed = folder.exists()
+
+            if r2.is_configured():
+                already_existed = bool(r2.list_objects(prefix=f"{handle}/"))
+            else:
+                already_existed = (OUTPUT_DIR / handle).exists()
 
             process_product_url(url, OUTPUT_DIR)
 
-            if not already_existed and folder.exists():
-                get_or_create_display_name(handle)
+            if not already_existed:
+                try:
+                    get_or_create_display_name(handle)
+                except Exception as exc:
+                    log.error("Failed creating display name for %s: %s", handle, exc)
                 send_notification_email(handle)
         except Exception as exc:
             log.error("Failed processing %s: %s", url, exc, exc_info=True)
+
+
+# ── Manual notification trigger ──────────────────────────────────────────────
+@app.post("/api/notify/{product}")
+async def manual_notify(product: str):
+    """Manually send a notification email for a product (in case auto-send failed)."""
+    send_notification_email(product)
+    return JSONResponse({"status": "sent", "product": product, "to": NOTIFY_EMAIL})
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
