@@ -33,7 +33,7 @@ OUTPUT_DIR         = Path(os.environ.get("OUTPUT_DIR", "downloads"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 RESEND_API_KEY     = os.environ.get("RESEND_API_KEY", "")
 NOTIFY_EMAIL       = os.environ.get("NOTIFY_EMAIL", "fashion@notify.e-dmm.com")
-FROM_EMAIL         = os.environ.get("FROM_EMAIL", "pjariwala@episolve.com")
+FROM_EMAIL         = os.environ.get("FROM_EMAIL", "fashion@notify.e-dmm.com")
 PORTFOLIO_BASE_URL = os.environ.get("PORTFOLIO_BASE_URL", "")
 PORTFOLIO_PASSCODE = os.environ.get("PORTFOLIO_PASSCODE", "")
 IMAGE_EXTS         = {".jpg", ".jpeg", ".png", ".webp"}
