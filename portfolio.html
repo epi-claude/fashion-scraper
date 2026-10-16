@@ -60,19 +60,15 @@ header { background: var(--charcoal); color: var(--cream); padding: 0 32px; heig
 .sidebar-tab-all:hover { background: var(--cream); color: var(--charcoal); }
 .sidebar-tab-all.active { background: var(--cream); border-left-color: var(--accent); color: var(--charcoal); font-weight: 500; }
 .tab-all-count { margin-left: auto; font-size: 11px; color: var(--muted); background: var(--sand); padding: 2px 7px; border-radius: 10px; }
-.view-switch { display: flex; margin: 12px 14px 4px; border: 1px solid var(--sand); border-radius: 2px; overflow: hidden; }
-.view-switch button { flex: 1; background: var(--white); border: none; padding: 7px 0; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted); cursor: pointer; transition: all 0.15s; }
-.view-switch button.active { background: var(--charcoal); color: var(--cream); }
-.view-switch .vs-count { font-size: 10px; opacity: 0.7; margin-left: 3px; }
 .sidebar-label-row { display: flex; align-items: center; justify-content: space-between; padding-right: 10px; }
 .sort-toggle { background: none; border: 1px solid var(--sand); color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 10px; padding: 3px 8px; border-radius: 10px; cursor: pointer; margin-top: 6px; }
 .sort-toggle:hover { border-color: var(--accent); color: var(--accent); }
 .group-label { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); padding: 12px 16px 4px; font-weight: 500; }
 .sidebar-empty { padding: 14px 16px; font-size: 12px; color: var(--muted); }
-.sidebar-note { padding: 10px 16px 14px; font-size: 11px; color: var(--muted); line-height: 1.5; }
 .tab-title { display: block; }
 .tab-sub { display: block; font-size: 10px; color: var(--muted); opacity: 0.8; margin-top: 2px; }
 .tab-sub.new { color: var(--accent); opacity: 1; font-weight: 500; }
+.tab-sub.soon { color: var(--danger); opacity: 1; font-weight: 500; }
 .product-tab { display: flex; align-items: center; border-left: 3px solid transparent; transition: background 0.15s; }
 .product-tab:hover { background: var(--cream); }
 .product-tab:hover .tab-zip, .product-tab:hover .tab-arch, .product-tab:hover .tab-del { opacity: 1; }
@@ -92,6 +88,21 @@ header { background: var(--charcoal); color: var(--cream); padding: 0 32px; heig
 
 /* ── Main ── */
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Portfolio / Archived tabs ── */
+.view-bar { background: var(--white); border-bottom: 1px solid var(--sand); padding: 0 20px; display: flex; flex-shrink: 0; }
+.view-tab { background: none; border: none; border-bottom: 3px solid transparent; padding: 14px 20px 11px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
+.view-tab:hover { color: var(--charcoal); }
+.view-tab.active { color: var(--charcoal); border-bottom-color: var(--accent); font-weight: 500; }
+.vt-count { font-size: 11px; background: var(--sand); color: var(--muted); padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.view-tab.active .vt-count { background: var(--accent); color: var(--white); }
+
+/* ── Auto-cleanup rule banner ── */
+.rule-banner { display: flex; align-items: center; gap: 12px; background: #f3e4d4; border-left: 4px solid var(--accent); color: var(--charcoal); padding: 12px 20px; font-size: 13px; line-height: 1.5; flex-shrink: 0; }
+.rule-banner strong { color: var(--accent); font-weight: 600; }
+.rule-icon { font-size: 20px; flex-shrink: 0; }
+.rule-banner.archived { background: #2c2420; border-left-color: var(--danger); color: var(--cream); }
+.rule-banner.archived strong { color: #ff9988; }
 
 /* ── Thumbnail Slider ── */
 .slider-section { background: var(--white); border-bottom: 1px solid var(--sand); padding: 16px 0; flex-shrink: 0; position: relative; }
@@ -268,6 +279,12 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
   .slider-nav-btns { display: none; }
   .thumb-card { width: 150px; }
 
+  /* Tabs + banner */
+  .view-bar { padding: 0; }
+  .view-tab { flex: 1; justify-content: center; padding: 13px 8px 10px; }
+  .rule-banner { padding: 10px 12px; font-size: 12px; gap: 10px; }
+  .rule-icon { font-size: 18px; }
+
   /* Grid: 2 columns */
   .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 12px; }
 
@@ -394,10 +411,6 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
     <div class="sidebar-search">
       <input type="text" id="search" placeholder="Search products…">
     </div>
-    <div class="view-switch">
-      <button id="vs-active" class="active" onclick="setView('active')">Portfolio<span class="vs-count" id="active-count"></span></button>
-      <button id="vs-archived" onclick="setView('archived')">Archived<span class="vs-count" id="archived-count"></span></button>
-    </div>
     <div class="sidebar-label-row">
       <div class="sidebar-label" id="sidebar-label">Products</div>
       <button class="sort-toggle" id="sort-toggle" onclick="toggleSort()">Newest first</button>
@@ -407,12 +420,20 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
       <span class="tab-all-count" id="all-count">0</span>
     </button>
     <div id="sidebar-tabs"></div>
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-note" id="sidebar-note"></div>
   </aside>
 
   <!-- Main -->
   <main class="main">
+
+    <!-- Portfolio / Archived tabs -->
+    <div class="view-bar">
+      <button class="view-tab active" id="vs-active" onclick="setView('active')">Portfolio <span class="vt-count" id="active-count">0</span></button>
+      <button class="view-tab" id="vs-archived" onclick="setView('archived')">📦 Archived <span class="vt-count" id="archived-count">0</span></button>
+    </div>
+    <div class="rule-banner" id="rule-banner">
+      <span class="rule-icon" id="rule-icon">ⓘ</span>
+      <span id="rule-text"></span>
+    </div>
 
     <!-- Thumbnail slider -->
     <div class="slider-section">
@@ -510,6 +531,8 @@ function groupLabel(iso){
   return 'Older';
 }
 function reasonLabel(p){return {sold_out:'Sold out',expired:'Expired',manual:'Archived'}[p.archive_reason]||'Archived';}
+const SOON_DAYS=7;
+function archivesSoon(p){return p.status==='active'&&p.archive_after&&daysUntil(p.archive_after)<=SOON_DAYS;}
 function isNew(h){const p=productMap.get(h);return !!p&&p.status==='active'&&Date.parse(p.added_at)>prevLastSeen;}
 
 function updateStorageBar(){
@@ -698,8 +721,8 @@ function buildViewChrome(){
   const count=list=>list.reduce((n,p)=>n+p.image_count,0);
   document.getElementById('vs-active').classList.toggle('active',view==='active');
   document.getElementById('vs-archived').classList.toggle('active',view==='archived');
-  document.getElementById('active-count').textContent=active.length?' '+active.length:'';
-  document.getElementById('archived-count').textContent=archived.length?' '+archived.length:'';
+  document.getElementById('active-count').textContent=active.length;
+  document.getElementById('archived-count').textContent=archived.length;
   document.getElementById('sidebar-label').textContent=view==='active'?'Products':'Archived';
   document.getElementById('all-label').textContent=view==='active'?'All Products':'All Archived';
   document.getElementById('all-count').textContent=count(inView);
@@ -707,10 +730,12 @@ function buildViewChrome(){
   document.getElementById('slider-title').textContent=view==='active'?'Browse by product':'Archived products';
   document.getElementById('total-count').textContent=count(active);
   document.getElementById('folder-count').textContent=active.length;
-  const a=settings.archive_after_days, del=settings.delete_after_days;
-  document.getElementById('sidebar-note').textContent=view==='active'
-    ?'Products move to Archived when they sell out'+(a?', or '+a+' days after they arrive':'')+'.'
-    :'Archived products are deleted for good '+(del?del+' days':'some time')+' after archiving. Use ↺ to restore one.';
+  const a=settings.archive_after_days||30, del=settings.delete_after_days||30;
+  document.getElementById('rule-banner').classList.toggle('archived',view==='archived');
+  document.getElementById('rule-icon').textContent=view==='active'?'📦':'⚠';
+  document.getElementById('rule-text').innerHTML=view==='active'
+    ?'<strong>Automatic cleanup:</strong> products move to <strong>Archived</strong> when they <strong>sell out</strong>, or <strong>'+a+' days</strong> after they arrive. Download what you need before then.'
+    :'<strong>Archived products are deleted permanently '+del+' days after archiving.</strong> Tap ↺ on a product to bring it back to the portfolio.';
 }
 
 // ── Slider ──
@@ -729,7 +754,7 @@ function buildSlider(){
       '</div>'+
       '<div class="thumb-label">'+
       '<div class="thumb-name">'+dn(p.handle)+'</div>'+
-      '<div class="thumb-count">'+count+' image'+(count!==1?'s':'')+(isNew(p.handle)?' · ✦ New':'')+'</div>'+
+      '<div class="thumb-count">'+count+' image'+(count!==1?'s':'')+(isNew(p.handle)?' · ✦ New':archivesSoon(p)?' · archives in '+daysUntil(p.archive_after)+'d':'')+'</div>'+
       '</div>'+
       '<div class="thumb-active-bar"></div>';
     card.addEventListener('click',()=>applyFilter(p.handle));
@@ -785,13 +810,14 @@ function buildSidebar(){
     const fresh=isNew(p.handle);
     const sub=view==='archived'
       ?reasonLabel(p)+(p.delete_after?' · deleted in '+daysUntil(p.delete_after)+'d':'')
-      :(fresh?'✦ New':'Added '+fmtAgo(p.added_at));
+      :(fresh?'✦ New':archivesSoon(p)?'Archives in '+daysUntil(p.archive_after)+' day'+(daysUntil(p.archive_after)!==1?'s':''):'Added '+fmtAgo(p.added_at));
+    const subClass=fresh?' new':archivesSoon(p)?' soon':'';
     const tab=document.createElement('div');
     tab.className='product-tab'+(activeFilter===p.handle?' active':'');
     tab.dataset.product=p.handle;
     tab.innerHTML=
       '<button class="tab-name" title="'+dn(p.handle)+'"><span class="tab-title">'+dn(p.handle)+'</span>'+
-      '<span class="tab-sub'+(fresh?' new':'')+'">'+sub+'</span></button>'+
+      '<span class="tab-sub'+subClass+'">'+sub+'</span></button>'+
       '<span class="tab-count"><span>'+p.image_count+' img</span><span>'+fmtBytes(folderSizes[p.handle]||0)+'</span></span>'+
       '<button class="tab-zip" title="Download ZIP">⬇</button>'+
       (view==='active'
@@ -872,8 +898,9 @@ function renderGrid(animate){
       '<img src="'+img.url+'" alt="'+label+'" loading="lazy">'+
       badge+
       '<div class="card-actions">'+
-      '<button class="act-btn" onclick="openLightbox('+idx+',event)">⊕ View</button>'+
+      '<button class="act-btn" onclick="openLightbox('+idx+',event)">'+(view==='archived'?'⊕':'⊕ View')+'</button>'+
       '<button class="act-btn dl" onclick="downloadSingle(\''+img.product+'\',\''+img.filename+'\',event)">⬇</button>'+
+      (view==='archived'?'<button class="act-btn" title="Restore to portfolio" onclick="event.stopPropagation();restoreProduct(\''+img.product+'\')">↺</button>':'')+
       '<button class="act-btn del" onclick="confirmDeleteImage(\''+img.product+'\',\''+img.filename+'\',event)">🗑</button>'+
       '</div></div>'+
       '<div class="card-info"><div class="card-product">'+label+'</div><div class="card-meta">'+img.filename+(img.size?' · '+fmtBytes(img.size):'')+'</div></div>'+
