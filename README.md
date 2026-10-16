@@ -1,176 +1,84 @@
-# Steps NY Image Scraper — Deployment Guide
+# MARO.SHOPPING — Steps NY Image Portfolio
 
-## Files
+Email Steps New York product links → the photos are collected automatically → everyone is notified → view and download them in a private portfolio. Old and sold-out products are cleaned up on their own.
 
-| File | Purpose |
+**Portfolio:** https://fashion-scraper-production-b9b6.up.railway.app (passcode protected)
+
+See `CHANGELOG.md` for what changed and when, and `CLAUDE.md` for the technical reference (all settings and API routes).
+
+---
+
+## How it works (plain language)
+
+| Role | Address |
 |---|---|
-| `main.py` | FastAPI app — receives Resend webhook, dispatches background tasks |
-| `scraper.py` | URL extraction, page scraping, image downloading |
-| `requirements.txt` | Python dependencies |
-| `fashion-scraper.service` | systemd unit for production auto-start |
+| Send product links **to** | `fashion@notify.e-dmm.com` |
+| Notification emails come **from** | MARO.SHOPPING `noreply@notify.e-dmm.com` |
+| "New arrivals" email goes **to** | `fashion@notify.e-dmm.com`, `pjariwala@episolve.com` |
+| "Received" confirmation goes **to** | whoever sent the links |
+
+1. **Send the links.** Email one or more `https://www.stepsnewyork.com/products/...` links to the address above. Subject and wording don't matter.
+2. **Photos are collected** (about 1–2 minutes). Every photo of each product is saved at full quality, under a made-up name (e.g. "Ava Silk") for privacy.
+3. **Two emails go out.** "New arrivals" (with a picture of each product and an *Open Portfolio* button) to the receivers, and a "Received: 2 added, 1 failed…" confirmation to the sender. A sender who is already a receiver only gets the first one.
+4. **View and download.** Newest products are at the top, marked ✦ New. Download one photo, a selection, or a whole product as a ZIP. If something new arrives while you browse, a "✦ new product — tap to show" button appears; the page never jumps.
+5. **Automatic cleanup** (every morning, ~6am New York time):
+   - Sold out on Steps NY, or 30 days old → moves to the **📦 Archived** tab (hidden, not deleted). The last week shows "Archives in X days" in red.
+   - Archived for 30 days → deleted for good. Tap **↺** to restore before then.
+   - Archived because sold out, but back in stock → restored automatically.
+
+Emails without Steps NY links are ignored (no reply). Re-sending a product refreshes its photos; if it was archived, it comes back as new.
 
 ---
 
-## 1. Server Setup (Ubuntu / Debian)
+## Hosting (Railway)
+
+The app runs on **Railway**, connected to this GitHub repo. **Every push to `main` deploys automatically.**
+
+- **Settings:** Railway → `fashion-scraper` service → **Variables** (full list in `CLAUDE.md`). The ones you must have: `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `PORTFOLIO_BASE_URL`, `PORTFOLIO_PASSCODE`, and the five `R2_*` storage settings.
+- **Logs:** Railway → service → **Deployments** → **View logs**. Healthy startup shows `Daily cleanup scheduled …`, then `Cleanup done …` about a minute later.
+- **Images** are stored in Cloudflare **R2** (bucket set by `R2_BUCKET_NAME`).
+- **Email** (receiving and sending) goes through **Resend**, domain `notify.e-dmm.com`. The inbound webhook points at `<portfolio URL>/webhook/resend`; `setup-services.sh` registers it.
+
+The `fashion-scraper.service` / `cloudflared.service` systemd files are from the earlier self-hosted setup and are no longer used.
+
+---
+
+## Running locally
 
 ```bash
-# 1. Install Python 3.10+ if not present
-sudo apt update && sudo apt install -y python3.10 python3.10-venv python3-pip
-
-# 2. Create project directory
-sudo mkdir -p /opt/fashion-scraper
-sudo chown $USER /opt/fashion-scraper
-
-# 3. Copy project files
-cp main.py scraper.py requirements.txt /opt/fashion-scraper/
-cd /opt/fashion-scraper
-
-# 4. Create a virtual environment and install dependencies
-python3.10 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
-pip install --upgrade pip
 pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
 ```
+
+Without `R2_*` settings, images are stored in `./downloads/<product>/` and product records in `./downloads/products.json`. Without `PORTFOLIO_PASSCODE` the portfolio is open. Without `PORTFOLIO_BASE_URL` no emails are sent.
+
+Health check: `curl http://localhost:8000/health` → `{"status":"ok"}`
+
+The webhook only accepts requests signed by Resend when `RESEND_WEBHOOK_SECRET` is set, so to try it by hand locally, leave that variable unset.
 
 ---
 
-## 2. Run Manually (dev / testing)
-
-```bash
-cd /opt/fashion-scraper
-source venv/bin/activate
-
-# Single worker, auto-reload on code changes
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Test the health endpoint:
-```bash
-curl http://localhost:8000/health
-# → {"status":"ok"}
-```
-
-Simulate a webhook locally:
-```bash
-curl -X POST http://localhost:8000/webhook/resend \
-  -H "Content-Type: application/json" \
-  -d '{
-    "subject": "New arrivals",
-    "from": "noreply@stepsnewyork.com",
-    "text": "Check out https://www.stepsnewyork.com/collections/lst_all_dresses/products/kiah-maxi-dress and https://www.stepsnewyork.com/products/marisol-maxi-dress",
-    "html": ""
-  }'
-```
-
-Downloaded images will appear in `./downloads/<product-handle>/`.
-
----
-
-## 3. Run as a systemd Service (production)
-
-```bash
-# Copy the service file
-sudo cp fashion-scraper.service /etc/systemd/system/
-
-# Edit WorkingDirectory / User if needed
-sudo nano /etc/systemd/system/fashion-scraper.service
-
-# Enable and start
-sudo systemctl daemon-reload
-sudo systemctl enable fashion-scraper
-sudo systemctl start fashion-scraper
-
-# Check status / logs
-sudo systemctl status fashion-scraper
-sudo journalctl -u fashion-scraper -f
-```
-
----
-
-## 4. Expose to the Internet
-
-Resend needs a **public HTTPS URL** to deliver webhooks.
-
-### Option A – Nginx reverse proxy (recommended)
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name scraper.yourdomain.com;
-
-    ssl_certificate     /etc/letsencrypt/live/scraper.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/scraper.yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass         http://127.0.0.1:8000;
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_read_timeout 30s;
-    }
-}
-```
-
-Get a free TLS cert:
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d scraper.yourdomain.com
-```
-
-### Option B – Quick tunnel for testing (no domain needed)
-
-```bash
-# Using ngrok
-ngrok http 8000
-# Paste the https://xxxx.ngrok.io URL into Resend dashboard
-```
-
----
-
-## 5. Configure Resend Inbound Webhook
-
-1. Log in to [resend.com](https://resend.com) → **Inbound** → **Create Webhook**.
-2. Set the **Endpoint URL** to:
-   ```
-   https://scraper.yourdomain.com/webhook/resend
-   ```
-3. Choose the domain / email address that will receive the forwarded emails.
-4. Save. Resend will POST the full parsed email JSON to your endpoint whenever a matching email arrives.
-
----
-
-## 6. Downloaded Image Structure
-
-```
-downloads/
-└── nike-air-max-90/
-│   ├── image_01.jpg   ← front view
-│   ├── image_02.jpg   ← back view
-│   └── image_03.jpg   ← side view
-└── adidas-samba/
-    ├── image_01.jpg
-    └── image_02.jpg
-```
-
----
-
-## 7. Scraping Strategy (priority order)
+## Scraping strategy (priority order)
 
 | # | Source | What it gives you |
 |---|---|---|
-| 1 | `window.ShopifyAnalytics.meta` JS object | Full product JSON incl. all media (front, back, side) at master resolution |
+| 1 | Shopify JSON API `/products/<handle>.json` | Every product image at full resolution |
 | 2 | `<script type="application/ld+json">` | Product schema `image[]` array |
-| 3 | `<img>` tag scan | Shopify CDN URLs from the rendered HTML |
+| 3 | `<img>` tag scan | Shopify CDN URLs from the HTML |
 
-All image URLs have Shopify's size suffix (e.g. `_480x`, `_800x`) stripped so you always get the **full-resolution master** image.
+Shopify size suffixes (e.g. `_480x`) are stripped so you always get the full-resolution image. The daily sold-out check uses `/products/<handle>.js` (404 = removed, `"available": false` = sold out).
 
 ---
 
-## 8. Troubleshooting
+## Troubleshooting
 
-| Symptom | Fix |
+| Symptom | Check |
 |---|---|
-| `downloads/` is empty | Check `journalctl -u fashion-scraper` for scraper errors; confirm the URL matches the pattern |
-| Resend shows delivery failures | Ensure your endpoint returns `200` within 10 s (it does — processing is async) |
-| Only 1–2 images saved | The store may use a JS-rendered gallery; try fetching `https://stepsnewyork.com/products/<handle>.json` directly |
-| Rate-limited by the store | Increase `DOWNLOAD_DELAY` in `scraper.py` |
-
+| No "New arrivals" email | Portfolio bottom bar shows "✉ Email sent / ⚠ Email failed" — hover for the reason. Also check Railway logs and Resend → Emails. `PORTFOLIO_BASE_URL` must be set. |
+| Email sent but nothing in the portfolio | Railway logs for `Rejected webhook` (wrong `RESEND_WEBHOOK_SECRET`) or `No Steps NY URLs found` |
+| A product disappeared | Look in the **📦 Archived** tab — it was sold out or older than 30 days. Tap ↺ to restore. |
+| Need the cleanup to run now | `POST /api/maintenance/run` (while logged in to the portfolio) |
+| Re-send a notification | `POST /api/notify/<product-handle>` |
+| Rate-limited by the store | Increase `DOWNLOAD_DELAY` in `scraper.py` / `CHECK_DELAY` in `maintenance.py` |

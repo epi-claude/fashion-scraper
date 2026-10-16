@@ -18,6 +18,23 @@ Daily (≈ MAINTENANCE_HOUR_UTC): sold out / 30 days old → archive; archived 3
 
 **Deployed on Railway** (GitHub repo → auto-deploy; config in `railway.toml` / `Procfile`). Environment variables are set in the Railway dashboard → service → **Variables**. The systemd units (`fashion-scraper.service`, `cloudflared.service`) are from the old self-hosted setup and are not in use.
 
+## Live deployment and email addresses
+
+- **Portfolio:** https://fashion-scraper-production-b9b6.up.railway.app (passcode protected)
+- **Links are emailed to:** `fashion@notify.e-dmm.com` (Resend inbound on `notify.e-dmm.com` — not yet confirmed in the Resend dashboard)
+- **Notifications from:** `MARO.SHOPPING <noreply@notify.e-dmm.com>`
+- **"New arrivals" to:** `fashion@notify.e-dmm.com`, `pjariwala@episolve.com` (`NOTIFY_EMAILS`)
+- **"Received" confirmation to:** the sender of the links (skipped if the sender is a receiver and got the arrivals email)
+
+History of changes: `CHANGELOG.md`. Plain-language overview: `README.md`.
+
+## Portfolio UI behaviour (portfolio.html)
+
+- Never re-renders on its own. A 60s background poll only shows a "✦ N new products — tap to show" pill; user actions refresh while keeping scroll position and loaded pages (`refresh()` / `applyData(d, true)`).
+- Products ordered by `added_at` newest first (date groups in the sidebar), A–Z toggle stored in localStorage. "✦ New" = added since the previous visit (`maro_last_seen`).
+- **Portfolio / 📦 Archived** tabs sit at the top of the main area (visible on mobile without the menu), with a highlighted rule banner. Products within 7 days of archiving show "Archives in N days" in red. Archived cards have a ↺ restore button.
+- A 401 from any API call shows the passcode screen.
+
 ## Key files
 
 | File | Purpose |
@@ -31,6 +48,7 @@ Daily (≈ MAINTENANCE_HOUR_UTC): sold out / 30 days old → archive; archived 3
 | `r2.py` | Cloudflare R2 (S3) helpers |
 | `portfolio.html` | Static portfolio viewer (served at `/` and `/portfolio`) |
 | `setup-services.sh` | Registers the Resend inbound webhook for the Railway URL |
+| `CHANGELOG.md` | Dated record of changes |
 
 ## Environment variables
 
@@ -90,6 +108,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 RESEND_API_KEY=re_xxx uvicorn main:app --reload --port 8000
 ```
+
+`portfolio.html` is read relative to the working directory, so run from the project root. Without R2 settings, data goes to `OUTPUT_DIR` (`downloads/`), including `products.json`. Leave `RESEND_WEBHOOK_SECRET` unset to post test webhooks by hand.
 
 ## Deploying / restarting
 
