@@ -21,7 +21,7 @@ Daily (≈ MAINTENANCE_HOUR_UTC): sold out / 30 days old → archive; archived 3
 ## Live deployment and email addresses
 
 - **Portfolio:** https://fashion-scraper-production-b9b6.up.railway.app (passcode protected)
-- **Links are emailed to:** `fashion@notify.e-dmm.com` (Resend inbound on `notify.e-dmm.com` — not yet confirmed in the Resend dashboard)
+- **Links are emailed to:** `fashion@notify.e-dmm.com` (Resend inbound on `notify.e-dmm.com`, confirmed 2026-10-16). Because it is also in `NOTIFY_EMAILS`, its copy of "New arrivals" loops back in and is ignored — only the other receivers actually get it.
 - **Notifications from:** `MARO.SHOPPING <noreply@notify.e-dmm.com>`
 - **"New arrivals" to:** `fashion@notify.e-dmm.com`, `pjariwala@episolve.com` (`NOTIFY_EMAILS`)
 - **"Received" confirmation to:** the sender of the links (skipped if the sender is a receiver and got the arrivals email)

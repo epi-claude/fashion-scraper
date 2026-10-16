@@ -27,6 +27,6 @@ Triggered by user feedback: *"I don't get notifications, also can we fix it so t
 - `aa74dba` Make Archived tab and auto-cleanup rule prominent
 
 ### Still open
-- Confirm in Resend → Inbound that `fashion@notify.e-dmm.com` is the address that receives links. If so, its copy of "New arrivals" is ignored by the loop guard and only `pjariwala@episolve.com` actually receives it — add another receiver via `NOTIFY_EMAILS` if needed.
+- `fashion@notify.e-dmm.com` is confirmed as the inbound address. Its copy of "New arrivals" is ignored by the loop guard, so only `pjariwala@episolve.com` actually receives it — add another receiver via `NOTIFY_EMAILS` if needed.
 - Replace the GitHub token stored in this repo's git remote URL.
 - Legacy `name_map.json` (alias → real product handle) is still publicly readable at the R2 bucket root.
