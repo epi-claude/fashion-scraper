@@ -2,7 +2,7 @@
 
 ## What this project does
 
-Automated pipeline that listens for inbound emails via a **Resend webhook**, extracts Steps New York product URLs from the email body, scrapes all product images from the Shopify store, saves them locally, and sends a notification email with a link to a portfolio viewer.
+Automated pipeline that listens for inbound emails via a **Resend webhook**, extracts Steps New York product URLs from the email body, scrapes all product images from the Shopify store, stores them in Cloudflare R2, and emails the receivers (and a confirmation to the sender) with a link to the portfolio viewer. A daily job archives sold-out / old products and later deletes them.
 
 The app is branded as **MARO.SHOPPING** in emails and the portfolio UI.
 
@@ -10,38 +10,48 @@ The app is branded as **MARO.SHOPPING** in emails and the portfolio UI.
 
 ```
 Resend inbound email
-  → POST /webhook/resend
-    → background task: extract URLs → scrape images → send notification email
+  → POST /webhook/resend  (Svix signature checked)
+    → background task: extract URLs → scrape images → record products
+      → "New arrivals" email to NOTIFY_EMAILS + confirmation to the sender
+Daily (≈ MAINTENANCE_HOUR_UTC): sold out / 30 days old → archive; archived 30 days → delete
 ```
 
-**Two services run on the host (systemd):**
-- `fashion-scraper` — uvicorn/FastAPI on port 8000
-- `cloudflared` — Cloudflare Tunnel exposing port 8000 publicly (dynamic `*.trycloudflare.com` URL)
+**Deployed on Railway** (GitHub repo → auto-deploy; config in `railway.toml` / `Procfile`). Environment variables are set in the Railway dashboard → service → **Variables**. The systemd units (`fashion-scraper.service`, `cloudflared.service`) are from the old self-hosted setup and are not in use.
 
 ## Key files
 
 | File | Purpose |
 |------|---------|
-| `main.py` | FastAPI app — webhook handler, portfolio/download/delete routes, email notification |
+| `main.py` | FastAPI app — routes, passcode middleware, webhook handler, inbound email flow |
 | `scraper.py` | Scraping logic — Shopify JSON API → ld+json → HTML img fallback |
+| `storage.py` | One interface over R2 / local `OUTPUT_DIR` (list, read, delete images) |
+| `catalog.py` | Product records (`products.json`): alias, added date, sender, active/archived; plus meta (processed email IDs, notification log) |
+| `notify.py` | Notification emails via Resend (arrivals + sender confirmation) |
+| `maintenance.py` | Daily cleanup job (sold-out check via `/products/<handle>.js`, archive, delete) |
+| `r2.py` | Cloudflare R2 (S3) helpers |
 | `portfolio.html` | Static portfolio viewer (served at `/` and `/portfolio`) |
-| `downloads/` | Image output dir — one subfolder per product handle |
-| `fashion-scraper.service` | systemd unit for the FastAPI app |
-| `cloudflared.service` | systemd unit for the Cloudflare tunnel |
-| `setup-services.sh` | One-time setup: installs services, registers Resend webhook |
+| `setup-services.sh` | Registers the Resend inbound webhook for the Railway URL |
 
 ## Environment variables
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `RESEND_API_KEY` | — | Required for webhook auth and sending emails |
-| `NOTIFY_EMAIL` | `pjariwala@episolve.com` | Recipient for new-product notifications |
-| `PORTFOLIO_BASE_URL` | — | Public base URL for portfolio links in notification emails |
+| `RESEND_API_KEY` | — | Required for fetching inbound emails and sending notifications |
+| `RESEND_WEBHOOK_SECRET` | — | `whsec_…` signing secret from Resend → Webhooks. If unset, signatures are not checked (warning logged) |
+| `NOTIFY_EMAILS` | `fashion@notify.e-dmm.com,pjariwala@episolve.com` | Comma-separated receivers of "new arrivals" emails (falls back to legacy `NOTIFY_EMAIL`) |
+| `FROM_EMAIL` | `MARO.SHOPPING <noreply@notify.e-dmm.com>` | Must be on a Resend-verified domain. Inbound mail from this address is ignored (loop guard) |
+| `PORTFOLIO_BASE_URL` | `https://$RAILWAY_PUBLIC_DOMAIN` | Public URL used for links/thumbnails in emails. No emails are sent if neither is set |
+| `PORTFOLIO_PASSCODE` | — | If set, required (via cookie) for every API and `/images` request |
+| `ALLOWED_SENDERS` | — | Optional allowlist, e.g. `a@b.com,@trusted.com`. Empty = anyone may send links |
+| `ARCHIVE_AFTER_DAYS` | `30` | Active products are archived this long after arriving / being restored |
+| `DELETE_AFTER_DAYS` | `30` | Archived products are deleted for good this long after archiving |
+| `MAINTENANCE_HOUR_UTC` | `10` | Hour the daily cleanup runs (≈ 6am New York) |
 | `R2_ENDPOINT_URL` | — | `https://<account_id>.r2.cloudflarestorage.com` |
 | `R2_ACCESS_KEY_ID` | — | R2 API token key ID |
-| `R2_SECRET_ACCESS_KEY` | — | R2 API token secret |
+| `R2_SECRET_ACCESS_KEY` | — | R2 API token secret (also seeds the unguessable `products.json` key) |
 | `R2_BUCKET_NAME` | — | R2 bucket name |
 | `R2_PUBLIC_URL` | — | Public URL base for serving images (e.g. `https://pub-xxx.r2.dev`) |
+| `OUTPUT_DIR` | `downloads` | Local image dir (used when R2 isn't configured; temp only when it is) |
 
 ## Image scraping strategy (scraper.py)
 
@@ -58,12 +68,19 @@ All image URLs are upgraded to full resolution by stripping Shopify size suffixe
 | GET | `/` or `/portfolio` | Portfolio HTML viewer |
 | GET | `/health` | Health check |
 | POST | `/webhook/resend` | Resend inbound webhook |
-| GET | `/api/images` | List all downloaded images (JSON) |
+| POST | `/api/unlock` | Check / submit passcode (sets auth cookie) |
+| GET | `/api/images` | Products (newest first, with status) + images (JSON) |
 | GET | `/api/download/folder/{product}` | Download product folder as ZIP |
 | POST | `/api/download/selected` | Download selected images as ZIP |
 | DELETE | `/api/delete/image` | Delete a single image |
+| DELETE | `/api/delete/images` | Delete several images (`{"files": ["product/file", …]}`) |
 | DELETE | `/api/delete/folder/{product}` | Delete an entire product folder |
-| Static | `/images/...` | Serve downloaded images directly |
+| POST | `/api/archive/{product}` / `/api/restore/{product}` | Hide / un-hide a product |
+| POST | `/api/maintenance/run` | Run the daily cleanup now |
+| POST | `/api/notify/{product}` | Re-send the arrivals email for one product |
+| Static | `/images/...` | Serve locally stored images |
+
+Everything except `/`, `/portfolio`, `/health`, `/webhook/resend` and `/api/unlock` requires the passcode cookie when `PORTFOLIO_PASSCODE` is set.
 
 ## Running locally
 
@@ -76,12 +93,12 @@ RESEND_API_KEY=re_xxx uvicorn main:app --reload --port 8000
 
 ## Deploying / restarting
 
-```bash
-sudo systemctl restart fashion-scraper
-sudo journalctl -u fashion-scraper -f   # tail logs
-```
+Push to the GitHub repo connected to Railway — it redeploys automatically. Logs: Railway dashboard → service → **Deployments** → **View logs**.
 
 ## Security notes
 
-- Path traversal is guarded on delete endpoints — all paths are resolved and checked against `OUTPUT_DIR` before deletion.
-- No authentication on the webhook endpoint; relies on Resend's event type filtering (`email.received` only).
+- Product handles and filenames are validated (`storage.valid_name`) before any read or delete, so paths can't escape a product folder.
+- Webhook requests are verified with Resend's Svix signature when `RESEND_WEBHOOK_SECRET` is set; duplicate deliveries are ignored by email ID.
+- The passcode is enforced server-side (HMAC cookie), not just in the page.
+- The R2 bucket is public: `products.json` is stored under an unguessable `_meta/<hash>/` key because it contains sender addresses. The legacy `name_map.json` is still at the bucket root (alias → handle).
+- No reply is sent to emails without product links, so auto-replies can't start a mail loop.

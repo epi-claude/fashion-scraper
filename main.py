@@ -2,14 +2,20 @@
 Steps New York – Resend Inbound Webhook Image Scraper + Portfolio
 """
 
+import asyncio
+import base64
+import hashlib
+import hmac
 import io
 import json
 import logging
 import os
-import random
+import time
 import zipfile
+from contextlib import asynccontextmanager
+from datetime import timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import requests as http_requests
 from fastapi import FastAPI, Request, BackgroundTasks
@@ -17,8 +23,12 @@ from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from scraper import process_product_url, extract_product_urls
-import r2
+from scraper import process_product_url, extract_product_urls, get_product_handle
+from storage import OUTPUT_DIR
+import catalog
+import maintenance
+import notify
+import storage
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -29,66 +39,65 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ── Config ───────────────────────────────────────────────────────────────────
-OUTPUT_DIR         = Path(os.environ.get("OUTPUT_DIR", "downloads"))
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-RESEND_API_KEY     = os.environ.get("RESEND_API_KEY", "")
-NOTIFY_EMAIL       = os.environ.get("NOTIFY_EMAIL", "fashion@notify.e-dmm.com")
-FROM_EMAIL         = os.environ.get("FROM_EMAIL", "fashion@notify.e-dmm.com")
-PORTFOLIO_BASE_URL = os.environ.get("PORTFOLIO_BASE_URL", "")
-PORTFOLIO_PASSCODE = os.environ.get("PORTFOLIO_PASSCODE", "")
-IMAGE_EXTS         = {".jpg", ".jpeg", ".png", ".webp"}
+RESEND_API_KEY        = os.environ.get("RESEND_API_KEY", "")
+RESEND_WEBHOOK_SECRET = os.environ.get("RESEND_WEBHOOK_SECRET", "")
+PORTFOLIO_PASSCODE    = os.environ.get("PORTFOLIO_PASSCODE", "")
+# Optional allowlist: "a@b.com,@trusted-domain.com". Empty = accept any sender.
+ALLOWED_SENDERS       = [s.strip().lower() for s in os.environ.get("ALLOWED_SENDERS", "").split(",") if s.strip()]
 
-NAME_MAP_FILE = OUTPUT_DIR / "name_map.json"
+AUTH_COOKIE = "maro_auth"
+OPEN_PATHS  = {"/", "/portfolio", "/health", "/webhook/resend", "/api/unlock"}
 
-# Pool of female names and feminine adjectives for product aliases
-_FEMALE_NAMES = [
-    "Alessa", "Amara", "Aria", "Aurora", "Ava", "Bianca", "Camille",
-    "Celeste", "Chloe", "Clara", "Daphne", "Elena", "Elise", "Emma",
-    "Fiona", "Gabrielle", "Isla", "Ivy", "Jade", "Juliet", "Lara",
-    "Layla", "Luna", "Mia", "Nadia", "Natalia", "Nina", "Olivia",
-    "Petra", "Phoebe", "Rosa", "Sabrina", "Serena", "Simone", "Sofia",
-    "Stella", "Valentina", "Vera", "Violet", "Zara", "Zoe",
-]
-_FEMALE_ADJECTIVES = [
-    "Blossom", "Breeze", "Cashmere", "Chic", "Classic", "Crystal",
-    "Dainty", "Delicate", "Dreamy", "Elegant", "Floral", "Graceful",
-    "Golden", "Ivory", "Lace", "Luxe", "Midnight", "Misty", "Pearl",
-    "Radiant", "Satin", "Sheer", "Silk", "Soft", "Velvet", "Whisper",
-]
+if not notify.PORTFOLIO_BASE_URL:
+    log.warning("PORTFOLIO_BASE_URL is not set — notification emails will not be sent.")
+if not RESEND_WEBHOOK_SECRET:
+    log.warning("RESEND_WEBHOOK_SECRET is not set — webhook signatures are NOT being checked.")
 
-
-def load_name_map() -> dict:
-    if r2.is_configured():
-        return r2.get_name_map()
-    if NAME_MAP_FILE.exists():
-        try:
-            return json.loads(NAME_MAP_FILE.read_text())
-        except Exception:
-            pass
-    return {}
-
-
-def save_name_map(name_map: dict) -> None:
-    if r2.is_configured():
-        r2.put_name_map(name_map)
-    else:
-        NAME_MAP_FILE.write_text(json.dumps(name_map, indent=2))
-
-
-def get_or_create_display_name(handle: str) -> str:
-    """Return the alias for *handle*, creating one if it doesn't exist yet."""
-    name_map = load_name_map()
-    if handle in name_map:
-        return name_map[handle]
-    display_name = f"{random.choice(_FEMALE_NAMES)} {random.choice(_FEMALE_ADJECTIVES)}"
-    name_map[handle] = display_name
-    save_name_map(name_map)
-    log.info("Assigned display name '%s' to handle '%s'", display_name, handle)
-    return display_name
 
 # ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="Steps NY Image Scraper", version="4.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    maintenance.start_scheduler()
+    yield
+
+app = FastAPI(title="Steps NY Image Scraper", version="5.0.0", lifespan=lifespan)
 app.mount("/images", StaticFiles(directory=str(OUTPUT_DIR)), name="images")
+
+
+# ── Passcode (enforced on the server, not just in the page) ──────────────────
+def _auth_token() -> str:
+    return hmac.new(PORTFOLIO_PASSCODE.encode(), b"maro-portfolio", hashlib.sha256).hexdigest()
+
+
+def _is_unlocked(request: Request) -> bool:
+    return not PORTFOLIO_PASSCODE or hmac.compare_digest(request.cookies.get(AUTH_COOKIE, ""), _auth_token())
+
+
+@app.middleware("http")
+async def require_passcode(request: Request, call_next):
+    if request.url.path not in OPEN_PATHS and not _is_unlocked(request):
+        return JSONResponse({"error": "Locked"}, status_code=401)
+    return await call_next(request)
+
+
+class UnlockRequest(BaseModel):
+    passcode: str
+
+@app.post("/api/unlock")
+async def unlock(body: UnlockRequest, request: Request):
+    """Empty passcode = "am I already unlocked?" check from the page."""
+    if _is_unlocked(request):
+        return JSONResponse({"ok": True})
+    if body.passcode and hmac.compare_digest(body.passcode, PORTFOLIO_PASSCODE):
+        resp = JSONResponse({"ok": True})
+        https = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+        resp.set_cookie(AUTH_COOKIE, _auth_token(), max_age=30 * 86400,
+                        httponly=True, samesite="lax", secure=https)
+        return resp
+    if body.passcode:
+        await asyncio.sleep(1)   # slow down guessing
+    return JSONResponse({"ok": False}, status_code=401)
+
 
 # ── Portfolio HTML ────────────────────────────────────────────────────────────
 PORTFOLIO_HTML_PATH = Path("portfolio.html")
@@ -101,142 +110,112 @@ async def portfolio():
 async def portfolio_alt():
     return HTMLResponse(PORTFOLIO_HTML_PATH.read_text())
 
+
+def _bad_name(*names: str):
+    if all(storage.valid_name(n) for n in names):
+        return None
+    return JSONResponse({"error": "Invalid name"}, status_code=400)
+
+
+def product_item(handle: str, rec: dict, imgs: List[dict]) -> dict:
+    """Summary of one product used by the page and the emails."""
+    return {
+        "handle": handle,
+        "display_name": rec.get("display_name") or handle,
+        "image_count": len(imgs),
+        "thumb_url": imgs[0]["url"] if imgs else "",
+    }
+
+
 # ── Images API ────────────────────────────────────────────────────────────────
 @app.get("/api/images")
-async def list_images():
-    if r2.is_configured():
-        return _list_images_r2()
-    return _list_images_local()
+def list_images():
+    stored = storage.list_products()
+    data = catalog.load()
+    if catalog.sync(data, stored):
+        with catalog.edit() as data:
+            catalog.sync(data, stored)
 
+    recs = data["products"]
+    handles = sorted(stored, key=lambda h: recs[h].get("added_at", ""), reverse=True)
 
-def _list_images_local():
-    folders = sorted(
-        [f for f in OUTPUT_DIR.iterdir() if f.is_dir()],
-        key=lambda f: f.stat().st_mtime,
-        reverse=True,
-    )
-    newest_product = folders[0].name if folders else None
-    images = []
-    folder_sizes: dict[str, int] = {}
-    total_size = 0
-    for folder_idx, folder in enumerate(folders):
-        imgs = sorted([f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTS])
-        folder_sz = 0
+    products, images, folder_sizes = [], [], {}
+    for idx, handle in enumerate(handles):
+        rec, imgs = recs[handle], stored[handle]
+        size = sum(i["size"] for i in imgs)
+        folder_sizes[handle] = size
+        item = product_item(handle, rec, imgs)
+        item.update(
+            added_at=rec.get("added_at"),
+            status=rec.get("status", "active"),
+            archive_reason=rec.get("archive_reason"),
+            size=size,
+        )
+        if item["status"] == "archived":
+            archived_at = catalog.parse(rec.get("archived_at"))
+            if archived_at:
+                item["delete_after"] = catalog.iso(archived_at + timedelta(days=maintenance.DELETE_AFTER_DAYS))
+        else:
+            since = catalog.active_since(rec)
+            if since:
+                item["archive_after"] = catalog.iso(since + timedelta(days=maintenance.ARCHIVE_AFTER_DAYS))
+        products.append(item)
         for img in imgs:
-            sz = img.stat().st_size
-            folder_sz += sz
-            total_size += sz
             images.append({
-                "product": folder.name,
-                "filename": img.name,
-                "product_index": folder_idx,
-                "url": f"/images/{folder.name}/{img.name}",
-                "size": sz,
+                "product": handle,
+                "filename": img["filename"],
+                "product_index": idx,
+                "url": img["url"],
+                "size": img["size"],
             })
-        folder_sizes[folder.name] = folder_sz
-    return {"images": images, "newest_product": newest_product, "display_names": load_name_map(), "folder_sizes": folder_sizes, "total_size": total_size}
 
-
-def _list_images_r2():
-    objects = r2.list_objects()
-    # Filter to image files only, group by product (top-level folder)
-    image_exts = IMAGE_EXTS
-    product_objects: dict[str, list] = {}
-    for obj in objects:
-        parts = obj["key"].split("/", 1)
-        if len(parts) != 2:
-            continue
-        product, filename = parts
-        if Path(filename).suffix.lower() not in image_exts:
-            continue
-        product_objects.setdefault(product, []).append(obj)
-
-    # Sort products newest-first by their most recent object modification time
-    sorted_products = sorted(
-        product_objects.keys(),
-        key=lambda p: max(o["last_modified"] for o in product_objects[p]),
-        reverse=True,
-    )
-    newest_product = sorted_products[0] if sorted_products else None
-
-    images = []
-    folder_sizes: dict[str, int] = {}
-    total_size = 0
-    for folder_idx, product in enumerate(sorted_products):
-        folder_sz = sum(o["size"] for o in product_objects[product])
-        folder_sizes[product] = folder_sz
-        total_size += folder_sz
-        for obj in sorted(product_objects[product], key=lambda o: o["key"]):
-            filename = obj["key"].split("/", 1)[1]
-            images.append({
-                "product": product,
-                "filename": filename,
-                "product_index": folder_idx,
-                "url": r2.object_url(obj["key"]),
-                "size": obj["size"],
-            })
-    return {"images": images, "newest_product": newest_product, "display_names": load_name_map(), "folder_sizes": folder_sizes, "total_size": total_size}
-
-
-# ── Passcode unlock ───────────────────────────────────────────────────────────
-class UnlockRequest(BaseModel):
-    passcode: str
-
-@app.post("/api/unlock")
-async def unlock(body: UnlockRequest):
-    if not PORTFOLIO_PASSCODE:
-        return JSONResponse({"ok": True})
-    if body.passcode == PORTFOLIO_PASSCODE:
-        return JSONResponse({"ok": True})
-    return JSONResponse({"ok": False}, status_code=401)
+    notifications = data["meta"].get("notifications") or []
+    active = [p["handle"] for p in products if p["status"] == "active"]
+    return {
+        "products": products,
+        "images": images,
+        "newest_product": active[0] if active else None,
+        "display_names": {h: r.get("display_name", h) for h, r in recs.items()},
+        "folder_sizes": folder_sizes,
+        "total_size": sum(folder_sizes.values()),
+        "last_notification": notifications[-1] if notifications else None,
+        "last_maintenance": data["meta"].get("last_maintenance"),
+        "settings": {
+            "archive_after_days": maintenance.ARCHIVE_AFTER_DAYS,
+            "delete_after_days": maintenance.DELETE_AFTER_DAYS,
+        },
+    }
 
 
 # ── Download: single folder as ZIP ───────────────────────────────────────────
-@app.get("/api/download/folder/{product}")
-async def download_folder(product: str):
-    if r2.is_configured():
-        return _download_folder_r2(product)
-    return _download_folder_local(product)
-
-
-def _download_folder_local(product: str):
-    folder = OUTPUT_DIR / product
-    if not folder.exists() or not folder.is_dir():
-        return JSONResponse({"error": "Product not found"}, status_code=404)
-    imgs = [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTS]
-    if not imgs:
-        return JSONResponse({"error": "No images found"}, status_code=404)
+def _zip_response(entries, filename: str):
+    """entries: iterable of (arcname, bytes)."""
     buf = io.BytesIO()
+    added = 0
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for img in sorted(imgs):
-            zf.write(img, arcname=img.name)
+        for arcname, data in entries:
+            if data:
+                zf.writestr(arcname, data)
+                added += 1
     buf.seek(0)
-    log.info("ZIP download (local): folder=%s  images=%d", product, len(imgs))
+    log.info("ZIP download: %s  images=%d", filename, added)
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{product}.zip"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
-def _download_folder_r2(product: str):
-    objects = r2.list_objects(prefix=f"{product}/")
-    imgs = [o for o in objects if Path(o["key"].split("/", 1)[-1]).suffix.lower() in IMAGE_EXTS]
+@app.get("/api/download/folder/{product}")
+def download_folder(product: str):
+    if err := _bad_name(product):
+        return err
+    imgs = storage.list_products(product).get(product)
     if not imgs:
         return JSONResponse({"error": "Product not found"}, status_code=404)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for obj in sorted(imgs, key=lambda o: o["key"]):
-            data = r2.get_object_bytes(obj["key"])
-            if data:
-                filename = obj["key"].split("/", 1)[1]
-                zf.writestr(filename, data)
-    buf.seek(0)
-    log.info("ZIP download (R2): folder=%s  images=%d", product, len(imgs))
-    return StreamingResponse(
-        buf,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{product}.zip"'},
+    return _zip_response(
+        ((i["filename"], storage.read_image(product, i["filename"])) for i in imgs),
+        f"{product}.zip",
     )
 
 
@@ -244,168 +223,130 @@ def _download_folder_r2(product: str):
 class SelectedFiles(BaseModel):
     files: List[str]  # list of "product/filename" strings
 
-@app.post("/api/download/selected")
-async def download_selected(body: SelectedFiles):
-    buf = io.BytesIO()
-    added = 0
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for entry in body.files:
-            parts = entry.split("/", 1)
-            if len(parts) != 2:
-                continue
-            product, filename = parts
-            if r2.is_configured():
-                data = r2.get_object_bytes(f"{product}/{filename}")
-                if data:
-                    zf.writestr(f"{product}/{filename}", data)
-                    added += 1
-            else:
-                img_path = OUTPUT_DIR / product / filename
-                if img_path.exists() and img_path.is_file():
-                    zf.write(img_path, arcname=f"{product}/{filename}")
-                    added += 1
-    buf.seek(0)
+def _split_entries(entries: List[str]):
+    for entry in entries:
+        product, _, filename = entry.partition("/")
+        if storage.valid_name(product) and storage.valid_name(filename):
+            yield product, filename
 
-    log.info("ZIP download: selected=%d files", added)
-    return StreamingResponse(
-        buf,
-        media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="steps-ny-selection.zip"'},
+@app.post("/api/download/selected")
+def download_selected(body: SelectedFiles):
+    return _zip_response(
+        ((f"{p}/{f}", storage.read_image(p, f)) for p, f in _split_entries(body.files)),
+        "maro-shopping-selection.zip",
     )
 
 
-# ── Delete: single image ─────────────────────────────────────────────────────
+# ── Delete ───────────────────────────────────────────────────────────────────
 class DeleteImage(BaseModel):
     product: str
     filename: str
 
 @app.delete("/api/delete/image")
-async def delete_image(body: DeleteImage):
-    if r2.is_configured():
-        key = f"{body.product}/{body.filename}"
-        if not r2.delete_object(key):
-            return JSONResponse({"error": "Delete failed"}, status_code=500)
-        # Also remove local copy if present
-        img_path = OUTPUT_DIR / body.product / body.filename
-        if img_path.exists():
-            img_path.unlink()
-        log.info("Deleted image (R2): %s", key)
-        return JSONResponse({"status": "deleted", "file": body.filename})
-
-    img_path = OUTPUT_DIR / body.product / body.filename
-    if not img_path.exists() or not img_path.is_file():
-        return JSONResponse({"error": "Image not found"}, status_code=404)
-    try:
-        img_path.resolve().relative_to(OUTPUT_DIR.resolve())
-    except ValueError:
-        return JSONResponse({"error": "Invalid path"}, status_code=400)
-    img_path.unlink()
+def delete_image(body: DeleteImage):
+    if err := _bad_name(body.product, body.filename):
+        return err
+    if not storage.delete_image(body.product, body.filename):
+        return JSONResponse({"error": "Delete failed"}, status_code=500)
     log.info("Deleted image: %s/%s", body.product, body.filename)
     return JSONResponse({"status": "deleted", "file": body.filename})
 
 
-# ── Delete: entire folder ─────────────────────────────────────────────────────
-@app.delete("/api/delete/folder/{product}")
-async def delete_folder(product: str):
-    import shutil
-    if r2.is_configured():
-        r2.delete_folder(product)
-        # Also clean up local copy if present
-        folder = OUTPUT_DIR / product
-        if folder.exists():
-            shutil.rmtree(folder)
-        log.info("Deleted folder (R2): %s", product)
-        return JSONResponse({"status": "deleted", "folder": product})
+@app.delete("/api/delete/images")
+def delete_images(body: SelectedFiles):
+    deleted = [f"{p}/{f}" for p, f in _split_entries(body.files) if storage.delete_image(p, f)]
+    log.info("Deleted %d selected image(s)", len(deleted))
+    return JSONResponse({"status": "deleted", "deleted": deleted})
 
-    folder = OUTPUT_DIR / product
-    if not folder.exists() or not folder.is_dir():
+
+@app.delete("/api/delete/folder/{product}")
+def delete_folder(product: str):
+    if err := _bad_name(product):
+        return err
+    if not storage.has_product(product):
         return JSONResponse({"error": "Folder not found"}, status_code=404)
-    try:
-        folder.resolve().relative_to(OUTPUT_DIR.resolve())
-    except ValueError:
-        return JSONResponse({"error": "Invalid path"}, status_code=400)
-    shutil.rmtree(folder)
-    log.info("Deleted folder: %s", product)
+    if not storage.delete_product(product):
+        return JSONResponse({"error": "Delete failed"}, status_code=500)
+    with catalog.edit() as data:
+        data["products"].pop(product, None)
     return JSONResponse({"status": "deleted", "folder": product})
 
 
-# ── Send notification email ───────────────────────────────────────────────────
-def send_notification_email(product_handle: str) -> None:
-    if not RESEND_API_KEY:
-        log.warning("RESEND_API_KEY not set — skipping notification email.")
-        return
+# ── Archive / restore ────────────────────────────────────────────────────────
+@app.post("/api/archive/{product}")
+def archive_product(product: str):
+    with catalog.edit() as data:
+        rec = data["products"].get(product)
+        if rec is None:
+            return JSONResponse({"error": "Product not found"}, status_code=404)
+        catalog.archive(rec, "manual")
+    log.info("Archived: %s", product)
+    return JSONResponse({"status": "archived", "product": product})
 
-    base_url      = PORTFOLIO_BASE_URL
-    portfolio_url = f"{base_url}/?product={product_handle}" if base_url else "/portfolio"
-    product_label = product_handle.replace("-", " ").title()
 
-    html_body = f"""
-    <div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;">
-      <div style="background:#1a1a1a;padding:32px 40px;">
-        <h1 style="color:#f5f0e8;font-weight:300;font-size:28px;letter-spacing:0.1em;margin:0;">MARO.SHOPPING</h1>
-        <p style="color:#c4a992;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;margin:6px 0 0;">Product Image Portfolio</p>
-      </div>
-      <div style="background:#8b6f5e;padding:14px 40px;">
-        <span style="color:white;font-size:13px;letter-spacing:0.06em;">✦ &nbsp;New product images are ready for you</span>
-      </div>
-      <div style="background:#f5f0e8;padding:40px;">
-        <p style="color:#6b6560;font-size:12px;text-transform:uppercase;letter-spacing:0.14em;margin:0 0 8px;">New arrival</p>
-        <h2 style="font-size:28px;font-weight:400;color:#1a1a1a;margin:0 0 20px;font-family:Georgia,serif;">{product_label}</h2>
-        <p style="color:#6b6560;font-size:14px;line-height:1.7;margin:0 0 12px;">
-          Great news — product images for <strong>{product_label}</strong> have been automatically downloaded and added to your MARO.SHOPPING portfolio.
-        </p>
-        <p style="color:#6b6560;font-size:14px;line-height:1.7;margin:0 0 32px;">
-          You can now view all images, filter by product, download individual photos, or grab the entire folder as a ZIP — perfect for creating your next social media post.
-        </p>
-        <a href="{portfolio_url}"
-           style="display:inline-block;background:#1a1a1a;color:#f5f0e8;padding:15px 36px;
-                  text-decoration:none;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;">
-          View Portfolio &amp; Download Images →
-        </a>
-      </div>
-      <div style="background:#e8ddd0;padding:20px 40px;border-top:1px solid #d8cdc0;">
-        <p style="color:#6b6560;font-size:12px;margin:0 0 6px;">Your portfolio is available at:</p>
-        <a href="{portfolio_url}" style="color:#8b6f5e;font-size:12px;word-break:break-all;">{portfolio_url}</a>
-      </div>
-      <div style="background:#1a1a1a;padding:16px 40px;">
-        <p style="color:#6b6560;font-size:11px;margin:0;letter-spacing:0.04em;">This is an automated notification from your MARO.SHOPPING image pipeline.</p>
-      </div>
-    </div>
-    """
+@app.post("/api/restore/{product}")
+def restore_product(product: str):
+    with catalog.edit() as data:
+        rec = data["products"].get(product)
+        if rec is None:
+            return JSONResponse({"error": "Product not found"}, status_code=404)
+        catalog.restore(rec)
+    log.info("Restored: %s", product)
+    return JSONResponse({"status": "active", "product": product})
 
+
+@app.post("/api/maintenance/run")
+def run_maintenance():
+    """Run the daily cleanup now instead of waiting for the schedule."""
+    return JSONResponse(maintenance.run())
+
+
+# ── Manual notification trigger ──────────────────────────────────────────────
+@app.post("/api/notify/{product}")
+def manual_notify(product: str):
+    """Re-send the arrivals email for one product (e.g. if the automatic one failed)."""
+    rec = catalog.load()["products"].get(product)
+    imgs = storage.list_products(product).get(product) if storage.valid_name(product) else None
+    if rec is None or not imgs:
+        return JSONResponse({"error": "Product not found"}, status_code=404)
+    ok = notify.send_arrivals([product_item(product, rec, imgs)], [])
+    return JSONResponse({"status": "sent" if ok else "failed", "product": product, "to": notify.NOTIFY_EMAILS},
+                        status_code=200 if ok else 502)
+
+
+# ── Inbound email ────────────────────────────────────────────────────────────
+def verify_signature(headers, body: bytes) -> bool:
+    """Check Resend's (Svix) webhook signature against RESEND_WEBHOOK_SECRET."""
+    msg_id, timestamp, signatures = (headers.get(h, "") for h in ("svix-id", "svix-timestamp", "svix-signature"))
+    if not (msg_id and timestamp and signatures):
+        return False
     try:
-        resp = http_requests.post(
-            "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "from": FROM_EMAIL,
-                "to": [NOTIFY_EMAIL],
-                "subject": f"New Product Ready: {product_label} — View & Download",
-                "html": html_body,
-            },
-            timeout=15,
-        )
-        if resp.status_code in (200, 201):
-            log.info("Notification email sent to %s for: %s", NOTIFY_EMAIL, product_handle)
-        else:
-            log.error("Notification email failed: %s %s", resp.status_code, resp.text)
-    except Exception as exc:
-        log.error("Error sending notification email: %s", exc)
+        if abs(time.time() - int(timestamp)) > 300:
+            return False
+        key = base64.b64decode(RESEND_WEBHOOK_SECRET.removeprefix("whsec_"))
+    except ValueError:
+        return False
+    signed = f"{msg_id}.{timestamp}.".encode() + body
+    expected = base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
+    return any(
+        version == "v1" and hmac.compare_digest(sig, expected)
+        for version, _, sig in (part.partition(",") for part in signatures.split())
+    )
 
 
-# ── Fetch email body from Resend ──────────────────────────────────────────────
-def fetch_email_body(email_id: str) -> str:
+def sender_allowed(sender: str) -> bool:
+    if not ALLOWED_SENDERS:
+        return True
+    domain = "@" + sender.rpartition("@")[2]
+    return any(entry in (sender, domain, domain[1:]) for entry in ALLOWED_SENDERS)
+
+
+def fetch_email(email_id: str) -> dict:
+    """Return the received email from Resend ({} on failure)."""
     if not RESEND_API_KEY:
         log.error("RESEND_API_KEY not set!")
-        return ""
-
-    headers = {
-        "Authorization": f"Bearer {RESEND_API_KEY}",
-        "Content-Type": "application/json",
-    }
+        return {}
+    headers = {"Authorization": f"Bearer {RESEND_API_KEY}"}
     for url in [
         f"https://api.resend.com/emails/receiving/{email_id}",
         f"https://api.resend.com/emails/{email_id}",
@@ -414,67 +355,75 @@ def fetch_email_body(email_id: str) -> str:
             resp = http_requests.get(url, headers=headers, timeout=15)
             if resp.status_code == 200:
                 data = resp.json()
-                text_body = data.get("text", "") or ""
-                html_body = data.get("html", "") or ""
-                combined  = f"{text_body}\n{html_body}"
-                log.info("Fetched email %s — subject: %r  body_length: %d",
-                         email_id, data.get("subject"), len(combined))
-                return combined
+                log.info("Fetched email %s — subject: %r", email_id, data.get("subject"))
+                return data
             log.warning("Endpoint %s returned %d: %s", url, resp.status_code, resp.text)
         except Exception as exc:
             log.error("Error calling %s: %s", url, exc)
-    return ""
+    return {}
 
 
-# ── Background task ───────────────────────────────────────────────────────────
 def handle_email(payload: dict) -> None:
     data     = payload.get("data", {})
     email_id = data.get("email_id") or data.get("id")
-
     if not email_id:
         log.warning("No email_id in payload.")
         return
+    if not catalog.mark_email_processed(email_id):
+        log.info("Email %s already processed — ignoring duplicate webhook.", email_id)
+        return
 
     log.info("Processing email_id: %s", email_id)
-    body = fetch_email_body(email_id)
-    if not body:
-        log.warning("Empty body for email_id: %s", email_id)
+    email  = fetch_email(email_id)
+    sender = notify.bare_address(email.get("from") or data.get("from"))
+    if notify.is_own_address(sender):
+        log.info("Ignoring our own notification email coming back in.")
+        return
+    if not sender_allowed(sender):
+        log.warning("Ignoring email from %r — not in ALLOWED_SENDERS.", sender)
         return
 
+    body = f"{email.get('text') or ''}\n{email.get('html') or ''}"
     urls = extract_product_urls(body)
     if not urls:
-        log.info("No Steps NY URLs found.")
+        # No reply here on purpose: auto-replies would otherwise bounce back and forth.
+        log.info("No Steps NY URLs found in email from %r.", sender)
         return
+    log.info("Found %d product URL(s) from %r.", len(urls), sender)
 
-    log.info("Found %d product URL(s).", len(urls))
-
+    added, existing, failed = [], [], []
     for url in urls:
+        handle = get_product_handle(url)
         try:
-            handle = url.rstrip("/").split("/")[-1]
-
-            if r2.is_configured():
-                already_existed = bool(r2.list_objects(prefix=f"{handle}/"))
-            else:
-                already_existed = (OUTPUT_DIR / handle).exists()
+            if not storage.valid_name(handle):
+                raise ValueError(f"unexpected product handle {handle!r}")
+            before = catalog.load()["products"].get(handle)
+            was_active = bool(before) and before.get("status") == "active" and storage.has_product(handle)
 
             process_product_url(url, OUTPUT_DIR)
+            imgs = storage.list_products(handle).get(handle)
+            if not imgs:
+                failed.append(url)
+                continue
 
-            if not already_existed:
-                try:
-                    get_or_create_display_name(handle)
-                except Exception as exc:
-                    log.error("Failed creating display name for %s: %s", handle, exc)
-                send_notification_email(handle)
+            with catalog.edit() as cat:
+                rec = cat["products"].setdefault(handle, {})
+                rec.setdefault("display_name", catalog.new_display_name())
+                rec.update(source_url=url, sender=sender)
+                if not was_active:
+                    # New, or re-sent after being archived: treat as a fresh arrival.
+                    rec.update(added_at=catalog.iso(catalog.now()), status="active",
+                               archived_at=None, archive_reason=None, restored_at=None)
+            (existing if was_active else added).append(product_item(handle, rec, imgs))
         except Exception as exc:
             log.error("Failed processing %s: %s", url, exc, exc_info=True)
+            failed.append(url)
 
-
-# ── Manual notification trigger ──────────────────────────────────────────────
-@app.post("/api/notify/{product}")
-async def manual_notify(product: str):
-    """Manually send a notification email for a product (in case auto-send failed)."""
-    send_notification_email(product)
-    return JSONResponse({"status": "sent", "product": product, "to": NOTIFY_EMAIL})
+    if added:
+        notify.send_arrivals(added, failed)
+    # The sender already gets the arrivals email if they're a receiver — don't send twice.
+    if sender and not (added and notify.is_receiver(sender)):
+        notify.send_confirmation(sender, added, existing, failed)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -485,9 +434,13 @@ async def health():
 
 @app.post("/webhook/resend")
 async def resend_webhook(request: Request, background_tasks: BackgroundTasks):
+    body = await request.body()
+    if RESEND_WEBHOOK_SECRET and not verify_signature(request.headers, body):
+        log.warning("Rejected webhook with a bad or missing signature.")
+        return JSONResponse({"error": "Invalid signature"}, status_code=401)
     try:
-        payload = await request.json()
-    except Exception:
+        payload = json.loads(body)
+    except ValueError:
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
 
     event_type = payload.get("type", "unknown")
@@ -499,4 +452,3 @@ async def resend_webhook(request: Request, background_tasks: BackgroundTasks):
         log.info("Ignoring event type: %s", event_type)
 
     return JSONResponse({"status": "accepted"}, status_code=200)
-

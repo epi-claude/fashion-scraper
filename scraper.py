@@ -196,8 +196,9 @@ def download_image(url: str, dest_folder: Path, index: int) -> Optional[Path]:
 
         log.info("  ✓ Saved %s (%d bytes)", filename.name, filename.stat().st_size)
 
-        if r2.is_configured():
-            r2.upload_file(filename, f"{dest_folder.name}/{filename.name}")
+        # R2 is the store of record; the local copy was only needed for the upload.
+        if r2.is_configured() and r2.upload_file(filename, f"{dest_folder.name}/{filename.name}"):
+            filename.unlink()
 
         return filename
 
@@ -207,11 +208,12 @@ def download_image(url: str, dest_folder: Path, index: int) -> Optional[Path]:
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
-def process_product_url(product_url: str, output_root: Path) -> None:
+def process_product_url(product_url: str, output_root: Path) -> int:
     """
     Full pipeline for one product URL:
       1. Try Shopify JSON API  → fastest, most complete
       2. Fallback: fetch HTML page → try ld+json, then img tags
+    Returns the number of images saved.
     """
     handle = get_product_handle(product_url)
     dest   = output_root / handle
@@ -243,15 +245,25 @@ def process_product_url(product_url: str, output_root: Path) -> None:
 
     if not images:
         log.warning("No images found for %s — skipping.", product_url)
-        return
+        _remove_if_empty(dest)
+        return 0
 
     log.info("Found %d image(s) for '%s'. Downloading…", len(images), handle)
 
+    saved = 0
     for i, img_url in enumerate(images, start=1):
         if not img_url.startswith("http"):
             img_url = "https:" + img_url if img_url.startswith("//") else img_url
-        download_image(img_url, dest, i)
+        if download_image(img_url, dest, i):
+            saved += 1
         time.sleep(DOWNLOAD_DELAY)
 
-    log.info("Done with '%s'. Images saved to: %s", handle, dest)
+    _remove_if_empty(dest)
+    log.info("Done with '%s': %d of %d image(s) saved.", handle, saved, len(images))
+    return saved
+
+
+def _remove_if_empty(folder: Path) -> None:
+    if folder.is_dir() and not any(folder.iterdir()):
+        folder.rmdir()
 

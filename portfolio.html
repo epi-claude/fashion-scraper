@@ -47,10 +47,10 @@ header { background: var(--charcoal); color: var(--cream); padding: 0 32px; heig
 .tb-hint { font-size: 11px; color: rgba(255,255,255,0.3); }
 
 /* ── Layout ── */
-.layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.layout { display: flex; flex: 1; min-height: 0; }
 
 /* ── Sidebar ── */
-.sidebar { width: var(--sidebar-w); background: var(--white); border-right: 1px solid var(--sand); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+.sidebar { width: var(--sidebar-w); background: var(--white); border-right: 1px solid var(--sand); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; position: sticky; top: 88px; height: calc(100vh - 88px); align-self: flex-start; }
 .sidebar-search { padding: 12px 14px; }
 .sidebar-search input { width: 100%; background: var(--cream); border: 1px solid var(--sand); padding: 7px 12px; border-radius: 2px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--charcoal); outline: none; transition: border-color 0.2s; }
 .sidebar-search input:focus { border-color: var(--accent); }
@@ -60,9 +60,22 @@ header { background: var(--charcoal); color: var(--cream); padding: 0 32px; heig
 .sidebar-tab-all:hover { background: var(--cream); color: var(--charcoal); }
 .sidebar-tab-all.active { background: var(--cream); border-left-color: var(--accent); color: var(--charcoal); font-weight: 500; }
 .tab-all-count { margin-left: auto; font-size: 11px; color: var(--muted); background: var(--sand); padding: 2px 7px; border-radius: 10px; }
+.view-switch { display: flex; margin: 12px 14px 4px; border: 1px solid var(--sand); border-radius: 2px; overflow: hidden; }
+.view-switch button { flex: 1; background: var(--white); border: none; padding: 7px 0; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+.view-switch button.active { background: var(--charcoal); color: var(--cream); }
+.view-switch .vs-count { font-size: 10px; opacity: 0.7; margin-left: 3px; }
+.sidebar-label-row { display: flex; align-items: center; justify-content: space-between; padding-right: 10px; }
+.sort-toggle { background: none; border: 1px solid var(--sand); color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 10px; padding: 3px 8px; border-radius: 10px; cursor: pointer; margin-top: 6px; }
+.sort-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.group-label { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); padding: 12px 16px 4px; font-weight: 500; }
+.sidebar-empty { padding: 14px 16px; font-size: 12px; color: var(--muted); }
+.sidebar-note { padding: 10px 16px 14px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.tab-title { display: block; }
+.tab-sub { display: block; font-size: 10px; color: var(--muted); opacity: 0.8; margin-top: 2px; }
+.tab-sub.new { color: var(--accent); opacity: 1; font-weight: 500; }
 .product-tab { display: flex; align-items: center; border-left: 3px solid transparent; transition: background 0.15s; }
 .product-tab:hover { background: var(--cream); }
-.product-tab:hover .tab-zip, .product-tab:hover .tab-del { opacity: 1; }
+.product-tab:hover .tab-zip, .product-tab:hover .tab-arch, .product-tab:hover .tab-del { opacity: 1; }
 .product-tab.active { background: var(--cream); border-left-color: var(--accent); }
 .product-tab.active .tab-name { color: var(--charcoal); font-weight: 500; }
 .tab-name { flex: 1; padding: 9px 0 9px 16px; font-size: 12px; color: var(--muted); font-family: 'DM Sans', sans-serif; background: none; border: none; text-align: left; cursor: pointer; line-height: 1.3; }
@@ -70,10 +83,12 @@ header { background: var(--charcoal); color: var(--cream); padding: 0 32px; heig
 .product-tab.active .tab-count { background: var(--accent-light); color: var(--charcoal); }
 .tab-zip { opacity: 0; background: none; border: none; color: var(--accent); padding: 7px 8px; cursor: pointer; font-size: 11px; transition: all 0.15s; flex-shrink: 0; font-family: 'DM Sans', sans-serif; }
 .tab-zip:hover { background: var(--accent); color: var(--white); }
+.tab-arch { opacity: 0; background: none; border: none; color: var(--muted); padding: 7px 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; flex-shrink: 0; }
+.tab-arch:hover { color: var(--accent); }
 .tab-del { opacity: 0; background: none; border: none; color: var(--muted); padding: 7px 8px; cursor: pointer; font-size: 12px; transition: all 0.15s; flex-shrink: 0; }
 .tab-del:hover { color: var(--danger); }
-.product-tab.active .tab-zip, .product-tab.active .tab-del { opacity: 0.5; }
-.product-tab.active:hover .tab-zip, .product-tab.active:hover .tab-del { opacity: 1; }
+.product-tab.active .tab-zip, .product-tab.active .tab-arch, .product-tab.active .tab-del { opacity: 0.5; }
+.product-tab.active:hover .tab-zip, .product-tab.active:hover .tab-arch, .product-tab.active:hover .tab-del { opacity: 1; }
 
 /* ── Main ── */
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -115,6 +130,7 @@ header { background: var(--charcoal); color: var(--cream); padding: 0 32px; heig
 .card { background: var(--white); border-radius: 2px; overflow: hidden; cursor: pointer; transition: box-shadow 0.2s, transform 0.2s; box-shadow: var(--shadow); position: relative; animation: fadeUp 0.3s ease both; }
 .card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
 .card.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+.grid.no-anim .card { animation: none; }
 @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 .card-checkbox { position: absolute; top: 8px; right: 8px; z-index: 10; width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,0.92); border: 1.5px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; transition: all 0.15s; cursor: pointer; font-size: 11px; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
 .card-checkbox.checked { background: var(--accent); border-color: var(--accent); color: white; }
@@ -124,6 +140,7 @@ header { background: var(--charcoal); color: var(--cream); padding: 0 32px; heig
 .card:hover .card-img-wrap img { transform: scale(1.05); }
 .card-badge { position: absolute; top: 8px; left: 8px; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 8px; border-radius: 1px; font-family: 'DM Sans', sans-serif; }
 .card-badge.new-badge { background: var(--accent); color: var(--white); }
+.card-badge.arch-badge { background: rgba(26,26,26,0.75); color: var(--white); }
 .card-actions { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(20,12,8,0.88)); padding: 24px 8px 8px; display: flex; gap: 5px; opacity: 0; transition: opacity 0.2s; }
 .card:hover .card-actions { opacity: 1; }
 .act-btn { flex: 1; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22); color: white; padding: 5px 2px; border-radius: 1px; font-size: 10px; cursor: pointer; text-align: center; transition: background 0.15s; font-family: 'DM Sans', sans-serif; display: flex; align-items: center; justify-content: center; gap: 3px; }
@@ -198,12 +215,18 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
 #storage-pct-text { color: rgba(255,255,255,0.6); }
 #storage-free-text { color: rgba(255,255,255,0.38); }
 #storage-free-text.warn { color: #ff9988; }
+#email-status { margin-left: auto; color: rgba(255,255,255,0.45); overflow: hidden; text-overflow: ellipsis; }
+#email-status.warn { color: #ff9988; }
+
+/* ── "New products" pill ── */
+#update-pill { position: fixed; top: 104px; left: 50%; transform: translate(-50%, -16px); opacity: 0; pointer-events: none; background: var(--accent); color: var(--white); border: none; padding: 9px 20px; border-radius: 20px; font-family: 'DM Sans', sans-serif; font-size: 13px; box-shadow: var(--shadow-hover); z-index: 500; transition: all 0.25s; cursor: pointer; white-space: nowrap; }
+#update-pill.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 
 /* ── Hamburger (mobile only) ── */
 .hamburger { display: none; background: none; border: none; color: var(--cream); font-size: 22px; cursor: pointer; padding: 8px; line-height: 1; flex-shrink: 0; }
 
 /* ── Sidebar overlay backdrop ── */
-.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 150; }
+.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300; }
 .sidebar-overlay.visible { display: block; }
 .sidebar-close-row { display: none; }
 
@@ -217,7 +240,7 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
   /* Sidebar: slide-in drawer */
   .sidebar {
     position: fixed; top: 0; left: 0; bottom: 0;
-    width: 260px; z-index: 160;
+    width: 260px; height: auto; z-index: 310;
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
     box-shadow: 4px 0 24px rgba(0,0,0,0.18);
@@ -279,6 +302,11 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
   #storage-bar { padding: 0 12px; gap: 7px; font-size: 10px; }
   .storage-track { width: 54px; }
   .storage-label { display: none; }
+  #storage-free-text { display: none; }
+  #update-pill { top: 96px; }
+
+  /* Touch: product actions always visible */
+  .tab-zip, .tab-arch, .tab-del { opacity: 0.6; }
 }
 </style>
 </head>
@@ -349,7 +377,10 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
   <div class="storage-track"><div id="storage-fill"></div></div>
   <span id="storage-pct-text">—</span>
   <span id="storage-free-text"></span>
+  <span id="email-status"></span>
 </div>
+
+<button id="update-pill" onclick="showPendingUpdates()"></button>
 
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
@@ -363,13 +394,21 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
     <div class="sidebar-search">
       <input type="text" id="search" placeholder="Search products…">
     </div>
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-label">Products</div>
+    <div class="view-switch">
+      <button id="vs-active" class="active" onclick="setView('active')">Portfolio<span class="vs-count" id="active-count"></span></button>
+      <button id="vs-archived" onclick="setView('archived')">Archived<span class="vs-count" id="archived-count"></span></button>
+    </div>
+    <div class="sidebar-label-row">
+      <div class="sidebar-label" id="sidebar-label">Products</div>
+      <button class="sort-toggle" id="sort-toggle" onclick="toggleSort()">Newest first</button>
+    </div>
     <button class="sidebar-tab-all active" id="btn-all" onclick="applyFilter('all')">
-      All Products
+      <span id="all-label">All Products</span>
       <span class="tab-all-count" id="all-count">0</span>
     </button>
     <div id="sidebar-tabs"></div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-note" id="sidebar-note"></div>
   </aside>
 
   <!-- Main -->
@@ -378,7 +417,7 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
     <!-- Thumbnail slider -->
     <div class="slider-section">
       <div class="slider-header">
-        <div class="slider-title">Browse by product</div>
+        <div class="slider-title" id="slider-title">Browse by product</div>
         <div class="slider-nav-btns">
           <button class="slider-nav" id="sl-prev">‹</button>
           <button class="slider-nav" id="sl-next">›</button>
@@ -428,13 +467,21 @@ footer { background: var(--charcoal); color: var(--muted); text-align: center; p
 
 <script>
 const PAGE_SIZE = 24;
+const POLL_MS = 60000;
 const R2_FREE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB free tier
-let allImages=[], filteredImages=[], visibleCount=PAGE_SIZE;
-let selectedSet=new Set(), currentLbIndex=0, activeFilter='all';
-let sliderOffset=0, sliderItemW=192, sliderProducts=[];
-let displayNames={}, folderSizes={}, totalSize=0;
+let allImages=[], products=[], productMap=new Map(), filteredImages=[], visibleCount=PAGE_SIZE;
+let selectedSet=new Set(), currentLbIndex=0, activeFilter='all', view='active';
+let sliderOffset=0, sliderItemW=192;
+let displayNames={}, folderSizes={}, totalSize=0, settings={};
+let pendingData=null, loadedOnce=false;
 const urlParams=new URLSearchParams(window.location.search);
 const highlightProduct=urlParams.get('product');
+
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+let sortMode=lsGet('maro_sort')==='az'?'az':'newest';
+// Products added after the previous visit get a "New" badge (first visit: last 2 days).
+const prevLastSeen=Number(lsGet('maro_last_seen'))||(Date.now()-2*86400000);
 
 function fmtBytes(b){
   if(b==null||isNaN(b))return '—';
@@ -443,6 +490,27 @@ function fmtBytes(b){
   if(b<1024*1024*1024)return (b/1024/1024).toFixed(1)+' MB';
   return (b/1024/1024/1024).toFixed(2)+' GB';
 }
+function fmtAgo(iso){
+  const s=(Date.now()-Date.parse(iso))/1000;
+  if(isNaN(s))return '';
+  if(s<60)return 'just now';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  const d=Math.floor(s/86400);
+  return d===1?'yesterday':d+' days ago';
+}
+function daysUntil(iso){return Math.max(0,Math.ceil((Date.parse(iso)-Date.now())/86400000));}
+function groupLabel(iso){
+  const t=Date.parse(iso), now=new Date(), day=86400000;
+  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
+  if(t>=today)return 'Today';
+  if(t>=today-day)return 'Yesterday';
+  if(t>=today-6*day)return 'This week';
+  if(t>=today-29*day)return 'This month';
+  return 'Older';
+}
+function reasonLabel(p){return {sold_out:'Sold out',expired:'Expired',manual:'Archived'}[p.archive_reason]||'Archived';}
+function isNew(h){const p=productMap.get(h);return !!p&&p.status==='active'&&Date.parse(p.added_at)>prevLastSeen;}
 
 function updateStorageBar(){
   const pct=Math.min(100,(totalSize/R2_FREE_BYTES)*100);
@@ -461,6 +529,13 @@ function updateStorageBar(){
     freeEl.className='';
   }
 }
+function updateEmailStatus(n){
+  const el=document.getElementById('email-status');
+  if(!n){el.textContent='';return;}
+  el.textContent=n.ok?'✉ Email sent '+fmtAgo(n.at):'⚠ Email failed '+fmtAgo(n.at);
+  el.className=n.ok?'':'warn';
+  el.title=n.ok?n.subject+' → '+(n.to||[]).join(', '):(n.error||'');
+}
 
 function showToast(msg,type='',dur=3000){
   const t=document.getElementById('toast');
@@ -470,18 +545,24 @@ function showToast(msg,type='',dur=3000){
 function fmt(h){return h.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
 function dn(h){return displayNames[h]||fmt(h);}
 
-// ── Passcode ──
+// ── Passcode (the server checks it on every request via a cookie) ──
+async function api(url,opts){
+  const r=await fetch(url,opts);
+  if(r.status===401){showPasscode();throw new Error('locked');}
+  return r;
+}
+function showPasscode(){
+  document.getElementById('passcode-screen').style.display='flex';
+  document.getElementById('loading').classList.add('hidden');
+  setTimeout(()=>document.getElementById('pc-input').focus(),80);
+}
 async function checkPasscode(){
-  if(sessionStorage.getItem('maro_unlocked')==='1') return true;
   try{
     const r=await fetch('/api/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passcode:''})});
     const d=await r.json();
-    if(d.ok){sessionStorage.setItem('maro_unlocked','1');return true;}
+    if(d.ok)return true;
   }catch(e){}
-  const ps=document.getElementById('passcode-screen');
-  ps.style.display='flex';
-  document.getElementById('loading').classList.add('hidden');
-  setTimeout(()=>document.getElementById('pc-input').focus(),80);
+  showPasscode();
   return false;
 }
 async function submitPasscode(){
@@ -490,7 +571,6 @@ async function submitPasscode(){
     const r=await fetch('/api/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({passcode:val})});
     const d=await r.json();
     if(d.ok){
-      sessionStorage.setItem('maro_unlocked','1');
       document.getElementById('passcode-screen').style.display='none';
       document.getElementById('loading').classList.remove('hidden');
       loadData();
@@ -507,60 +587,152 @@ async function submitPasscode(){
 document.getElementById('pc-input').addEventListener('keydown',e=>{if(e.key==='Enter')submitPasscode();});
 
 // ── Load ──
-async function loadData(silent=false){
+async function fetchData(){return (await api('/api/images')).json();}
+
+async function loadData(){
   try{
-    const r=await fetch('/api/images');
-    const d=await r.json();
-    allImages=d.images||[];
-    displayNames=d.display_names||{};
-    folderSizes=d.folder_sizes||{};
-    totalSize=d.total_size||0;
-    buildSidebar(d.newest_product);
-    buildSlider(d.newest_product);
-    applyFilter(activeFilter,true);
-    updateStorageBar();
-    document.getElementById('total-count').textContent=allImages.length;
-    const flds=[...new Set(allImages.map(i=>i.product))];
-    document.getElementById('folder-count').textContent=flds.length;
-    document.getElementById('all-count').textContent=allImages.length;
-    if(!silent) document.getElementById('loading').classList.add('hidden');
-    if(highlightProduct){
+    const d=await fetchData();
+    if(!loadedOnce){
+      loadedOnce=true;
+      const target=(d.products||[]).find(p=>p.handle===highlightProduct);
+      if(target){view=target.status;activeFilter=target.handle;}
+      lsSet('maro_last_seen',String(Date.now()));
+    }
+    applyData(d,false);
+    document.getElementById('loading').classList.add('hidden');
+    if(highlightProduct&&productMap.has(highlightProduct)){
       document.getElementById('new-banner').classList.add('visible');
       document.getElementById('new-banner-text').textContent='✦ New arrival added: '+dn(highlightProduct);
     }
   }catch(e){
-    if(!silent){document.getElementById('loading').classList.add('hidden');showToast('Failed to load','error');}
+    if(e.message!=='locked'){document.getElementById('loading').classList.add('hidden');showToast('Failed to load','error');}
   }
 }
 
+// Reload after the user changed something — keeps scroll position and "Load more" pages.
+async function refresh(){
+  try{applyData(await fetchData(),true);}catch(e){}
+}
+
+function applyData(d,keepView){
+  allImages=d.images||[];
+  products=d.products||[];
+  productMap=new Map(products.map(p=>[p.handle,p]));
+  displayNames=d.display_names||{};
+  folderSizes=d.folder_sizes||{};
+  totalSize=d.total_size||0;
+  settings=d.settings||{};
+  pendingData=null;
+  document.getElementById('update-pill').classList.remove('show');
+
+  const keys=new Set(allImages.map(i=>i.product+'/'+i.filename));
+  [...selectedSet].forEach(k=>{if(!keys.has(k))selectedSet.delete(k);});
+  updateSelUI();
+  if(activeFilter!=='all'&&productMap.get(activeFilter)?.status!==view)activeFilter='all';
+
+  buildViewChrome();
+  buildSidebar();
+  buildSlider();
+  updateStorageBar();
+  updateEmailStatus(d.last_notification);
+  if(keepView){
+    const scroll=saveScroll(), shown=visibleCount;
+    filterImages();
+    visibleCount=Math.max(PAGE_SIZE,shown);
+    renderGrid(false);
+    restoreScroll(scroll);
+  } else {
+    applyFilter(activeFilter,true);
+  }
+}
+
+function saveScroll(){return {win:window.scrollY,area:document.getElementById('content-area').scrollTop};}
+function restoreScroll(s){window.scrollTo(0,s.win);document.getElementById('content-area').scrollTop=s.area;}
+
+// ── Background check for new products (never re-renders on its own) ──
+async function poll(){
+  if(document.hidden||!loadedOnce)return;
+  try{
+    const r=await fetch('/api/images');
+    if(!r.ok)return;
+    const d=await r.json();
+    updateEmailStatus(d.last_notification);
+    const known=new Set(products.filter(p=>p.status==='active').map(p=>p.handle));
+    const fresh=(d.products||[]).filter(p=>p.status==='active'&&!known.has(p.handle));
+    if(fresh.length){
+      pendingData=d;
+      const pill=document.getElementById('update-pill');
+      pill.textContent='✦ '+fresh.length+' new product'+(fresh.length!==1?'s':'')+' — tap to show';
+      pill.classList.add('show');
+    }
+  }catch(e){}
+}
+function showPendingUpdates(){
+  if(!pendingData)return;
+  view='active';activeFilter='all';
+  applyData(pendingData,false);
+  window.scrollTo(0,0);
+}
+
+// ── View (portfolio / archived) and sort ──
+function viewProducts(){
+  const list=products.filter(p=>p.status===view);
+  if(sortMode==='az')list.sort((a,b)=>dn(a.handle).localeCompare(dn(b.handle)));
+  return list;   // server order is newest first
+}
+function setView(v){
+  if(v===view)return;
+  view=v;
+  buildViewChrome();buildSidebar();buildSlider();
+  applyFilter('all',true);
+}
+function toggleSort(){
+  sortMode=sortMode==='newest'?'az':'newest';
+  lsSet('maro_sort',sortMode);
+  buildViewChrome();buildSidebar();buildSlider();
+  applyFilter(activeFilter,true);
+}
+function buildViewChrome(){
+  const active=products.filter(p=>p.status==='active'), archived=products.filter(p=>p.status==='archived');
+  const inView=view==='active'?active:archived;
+  const count=list=>list.reduce((n,p)=>n+p.image_count,0);
+  document.getElementById('vs-active').classList.toggle('active',view==='active');
+  document.getElementById('vs-archived').classList.toggle('active',view==='archived');
+  document.getElementById('active-count').textContent=active.length?' '+active.length:'';
+  document.getElementById('archived-count').textContent=archived.length?' '+archived.length:'';
+  document.getElementById('sidebar-label').textContent=view==='active'?'Products':'Archived';
+  document.getElementById('all-label').textContent=view==='active'?'All Products':'All Archived';
+  document.getElementById('all-count').textContent=count(inView);
+  document.getElementById('sort-toggle').textContent=sortMode==='newest'?'Newest first':'A–Z';
+  document.getElementById('slider-title').textContent=view==='active'?'Browse by product':'Archived products';
+  document.getElementById('total-count').textContent=count(active);
+  document.getElementById('folder-count').textContent=active.length;
+  const a=settings.archive_after_days, del=settings.delete_after_days;
+  document.getElementById('sidebar-note').textContent=view==='active'
+    ?'Products move to Archived when they sell out'+(a?', or '+a+' days after they arrive':'')+'.'
+    :'Archived products are deleted for good '+(del?del+' days':'some time')+' after archiving. Use ↺ to restore one.';
+}
+
 // ── Slider ──
-function buildSlider(newestProduct){
-  const products=[...new Set(allImages.map(i=>i.product))].sort();
-  sliderProducts=products;
+function buildSlider(){
+  const list=viewProducts();
   const track=document.getElementById('slider-track');
   track.innerHTML='';
-
-  products.forEach(p=>{
-    const imgs=allImages.filter(i=>i.product===p);
-    const count=imgs.length;
-    // pick random image as thumbnail
-    const thumb=imgs[Math.floor(Math.random()*imgs.length)];
-    const isNew=p===newestProduct;
-    const isActive=activeFilter===p||(activeFilter==='all'&&p===products[0]&&false);
-
+  list.forEach(p=>{
+    const count=p.image_count;
     const card=document.createElement('div');
-    card.className='thumb-card'+(activeFilter===p?' active':'');
-    card.dataset.product=p;
+    card.className='thumb-card'+(activeFilter===p.handle?' active':'');
+    card.dataset.product=p.handle;
     card.innerHTML=
       '<div class="thumb-img-wrap">'+
-      '<img src="'+(thumb.url||'/images/'+p+'/'+thumb.filename)+'" alt="'+dn(p)+'" loading="lazy">'+
+      '<img src="'+p.thumb_url+'" alt="'+dn(p.handle)+'" loading="lazy">'+
       '</div>'+
       '<div class="thumb-label">'+
-      '<div class="thumb-name">'+dn(p)+'</div>'+
-      '<div class="thumb-count">'+count+' image'+(count!==1?'s':'')+(isNew?' ✦':'')+'</div>'+
+      '<div class="thumb-name">'+dn(p.handle)+'</div>'+
+      '<div class="thumb-count">'+count+' image'+(count!==1?'s':'')+(isNew(p.handle)?' · ✦ New':'')+'</div>'+
       '</div>'+
       '<div class="thumb-active-bar"></div>';
-    card.addEventListener('click',()=>applyFilter(p));
+    card.addEventListener('click',()=>applyFilter(p.handle));
     track.appendChild(card);
   });
   updateSliderNav();
@@ -570,6 +742,7 @@ function updateSliderNav(){
   const wrap=document.getElementById('slider-wrap');
   const track=document.getElementById('slider-track');
   const maxOffset=Math.max(0, track.scrollWidth - wrap.clientWidth);
+  if(sliderOffset>maxOffset){sliderOffset=maxOffset;track.style.transform='translateX(-'+sliderOffset+'px)';}
   document.getElementById('sl-prev').disabled=sliderOffset<=0;
   document.getElementById('sl-next').disabled=sliderOffset>=maxOffset;
 }
@@ -589,53 +762,78 @@ document.getElementById('sl-next').addEventListener('click',()=>{
 });
 
 // ── Sidebar ──
-function buildSidebar(newestProduct){
-  const products=[...new Set(allImages.map(i=>i.product))].sort();
+function buildSidebar(){
+  const list=viewProducts();
   const wrap=document.getElementById('sidebar-tabs');
   wrap.innerHTML='';
-  products.forEach(p=>{
-    const count=allImages.filter(i=>i.product===p).length;
-    const isNew=p===newestProduct;
+  if(!list.length){
+    wrap.innerHTML='<div class="sidebar-empty">'+(view==='active'?'No products yet.':'Nothing archived.')+'</div>';
+    return;
+  }
+  const grouped=view==='active'&&sortMode==='newest';
+  let lastGroup=null;
+  list.forEach(p=>{
+    if(grouped){
+      const g=groupLabel(p.added_at);
+      if(g!==lastGroup){
+        lastGroup=g;
+        const el=document.createElement('div');
+        el.className='group-label';el.textContent=g;
+        wrap.appendChild(el);
+      }
+    }
+    const fresh=isNew(p.handle);
+    const sub=view==='archived'
+      ?reasonLabel(p)+(p.delete_after?' · deleted in '+daysUntil(p.delete_after)+'d':'')
+      :(fresh?'✦ New':'Added '+fmtAgo(p.added_at));
     const tab=document.createElement('div');
-    tab.className='product-tab'+(activeFilter===p?' active':'');
-    tab.dataset.product=p;
+    tab.className='product-tab'+(activeFilter===p.handle?' active':'');
+    tab.dataset.product=p.handle;
     tab.innerHTML=
-      '<button class="tab-name" title="'+dn(p)+'">'+(isNew?'✦ ':'')+dn(p)+'</button>'+
-      '<span class="tab-count"><span>'+count+' img</span><span>'+fmtBytes(folderSizes[p]||0)+'</span></span>'+
+      '<button class="tab-name" title="'+dn(p.handle)+'"><span class="tab-title">'+dn(p.handle)+'</span>'+
+      '<span class="tab-sub'+(fresh?' new':'')+'">'+sub+'</span></button>'+
+      '<span class="tab-count"><span>'+p.image_count+' img</span><span>'+fmtBytes(folderSizes[p.handle]||0)+'</span></span>'+
       '<button class="tab-zip" title="Download ZIP">⬇</button>'+
+      (view==='active'
+        ?'<button class="tab-arch" title="Archive (hide)">📦</button>'
+        :'<button class="tab-arch" title="Restore to portfolio">↺</button>')+
       '<button class="tab-del" title="Delete folder">🗑</button>';
-    tab.querySelector('.tab-name').addEventListener('click',()=>applyFilter(p));
-    tab.querySelector('.tab-zip').addEventListener('click',e=>{e.stopPropagation();downloadFolder(p);});
-    tab.querySelector('.tab-del').addEventListener('click',e=>{e.stopPropagation();confirmDeleteFolder(p);});
+    tab.querySelector('.tab-name').addEventListener('click',()=>applyFilter(p.handle));
+    tab.querySelector('.tab-zip').addEventListener('click',e=>{e.stopPropagation();downloadFolder(p.handle);});
+    tab.querySelector('.tab-arch').addEventListener('click',e=>{e.stopPropagation();view==='active'?archiveProduct(p.handle):restoreProduct(p.handle);});
+    tab.querySelector('.tab-del').addEventListener('click',e=>{e.stopPropagation();confirmDeleteFolder(p.handle);});
     wrap.appendChild(tab);
   });
 }
 
 // ── Filter ──
+function filterImages(){
+  document.getElementById('btn-all').className='sidebar-tab-all'+(activeFilter==='all'?' active':'');
+  document.querySelectorAll('.product-tab').forEach(t=>t.classList.toggle('active',t.dataset.product===activeFilter));
+  document.querySelectorAll('.thumb-card').forEach(c=>c.classList.toggle('active',c.dataset.product===activeFilter));
+
+  const order=new Map(viewProducts().map((p,i)=>[p.handle,i]));
+  const search=document.getElementById('search').value.toLowerCase();
+  filteredImages=allImages.filter(img=>{
+    if(!order.has(img.product))return false;
+    const mf=activeFilter==='all'||img.product===activeFilter;
+    const ms=!search||img.product.toLowerCase().includes(search)||img.filename.toLowerCase().includes(search)||(dn(img.product)).toLowerCase().includes(search);
+    return mf&&ms;
+  }).sort((a,b)=>order.get(a.product)-order.get(b.product)||a.filename.localeCompare(b.filename));
+
+  const prods=new Set(filteredImages.map(i=>i.product)).size;
+  document.getElementById('stats-text').textContent=
+    (view==='archived'?'Archived · ':'')+
+    filteredImages.length+' image'+(filteredImages.length!==1?'s':'')+
+    ' · '+prods+' product'+(prods!==1?'s':'');
+}
+
+// User picked a product / view: start from the top of the grid.
 function applyFilter(filter,silent=false){
   activeFilter=filter;
   visibleCount=PAGE_SIZE;
-
-  // Sidebar
-  document.getElementById('btn-all').className='sidebar-tab-all'+(filter==='all'?' active':'');
-  document.querySelectorAll('.product-tab').forEach(t=>t.classList.toggle('active',t.dataset.product===filter));
-
-  // Slider thumbs
-  document.querySelectorAll('.thumb-card').forEach(c=>c.classList.toggle('active',c.dataset.product===filter));
-
-  const search=document.getElementById('search').value.toLowerCase();
-  filteredImages=allImages.filter(img=>{
-    const mf=filter==='all'||img.product===filter;
-    const ms=!search||img.product.toLowerCase().includes(search)||img.filename.toLowerCase().includes(search)||(dn(img.product)).toLowerCase().includes(search);
-    return mf&&ms;
-  });
-  renderGrid();
-  const prods=[...new Set(filteredImages.map(i=>i.product))];
-  document.getElementById('stats-text').textContent=
-    filteredImages.length+' image'+(filteredImages.length!==1?'s':'')+
-    ' · '+prods.length+' product'+(prods.length!==1?'s':'');
-
-  // Scroll content back to top
+  filterImages();
+  renderGrid(true);
   document.getElementById('content-area').scrollTop=0;
   // Close sidebar on mobile after selecting a product
   if(!silent&&window.innerWidth<=768){if(typeof closeSidebar==='function')closeSidebar();}
@@ -644,30 +842,35 @@ function applyFilter(filter,silent=false){
 // ── Load More ──
 function loadMore(){
   visibleCount=Math.min(visibleCount+PAGE_SIZE, filteredImages.length);
-  renderGrid(true);
+  renderGrid(false);
 }
 
 // ── Grid ──
-function renderGrid(append=false){
+function renderGrid(animate){
   const grid=document.getElementById('grid');
+  grid.classList.toggle('no-anim',!animate);
   const visible=filteredImages.slice(0,visibleCount);
   const remaining=filteredImages.length-visibleCount;
 
   if(!filteredImages.length){
-    grid.innerHTML='<div class="empty"><div class="empty-icon">✦</div><h3>No images found</h3><p>Try a different filter or search.</p></div>';
+    grid.innerHTML='<div class="empty"><div class="empty-icon">✦</div><h3>No images found</h3><p>'+
+      (view==='archived'?'Nothing is archived right now.':'Try a different filter or search.')+'</p></div>';
     document.getElementById('load-more-wrap').style.display='none';
     return;
   }
 
   grid.innerHTML=visible.map((img,idx)=>{
     const label=dn(img.product);
-    const isNew=highlightProduct&&img.product===highlightProduct;
+    const p=productMap.get(img.product);
+    const badge=view==='archived'
+      ?'<div class="card-badge arch-badge">'+reasonLabel(p)+'</div>'
+      :(isNew(img.product)?'<div class="card-badge new-badge">New</div>':'');
     const checked=selectedSet.has(img.product+'/'+img.filename);
     return '<div class="card'+(checked?' selected':'')+'" data-idx="'+idx+'" style="animation-delay:'+Math.min(idx*0.02,0.4)+'s">'+
       '<div class="card-checkbox'+(checked?' checked':'')+'" data-idx="'+idx+'">'+(checked?'✓':'')+'</div>'+
       '<div class="card-img-wrap">'+
-      '<img src="'+(img.url||'/images/'+img.product+'/'+img.filename)+'" alt="'+label+'" loading="lazy">'+
-      (isNew?'<div class="card-badge new-badge">New</div>':'')+
+      '<img src="'+img.url+'" alt="'+label+'" loading="lazy">'+
+      badge+
       '<div class="card-actions">'+
       '<button class="act-btn" onclick="openLightbox('+idx+',event)">⊕ View</button>'+
       '<button class="act-btn dl" onclick="downloadSingle(\''+img.product+'\',\''+img.filename+'\',event)">⬇</button>'+
@@ -702,10 +905,10 @@ function toggleSelect(idx){
   const img=filteredImages[idx];
   const key=img.product+'/'+img.filename;
   if(selectedSet.has(key))selectedSet.delete(key);else selectedSet.add(key);
-  updateSelUI();renderGrid();
+  updateSelUI();renderGrid(false);
 }
-function selectAll(){filteredImages.forEach(img=>selectedSet.add(img.product+'/'+img.filename));updateSelUI();renderGrid();}
-function clearSelection(){selectedSet.clear();updateSelUI();renderGrid();}
+function selectAll(){filteredImages.forEach(img=>selectedSet.add(img.product+'/'+img.filename));updateSelUI();renderGrid(false);}
+function clearSelection(){selectedSet.clear();updateSelUI();renderGrid(false);}
 function updateSelUI(){
   const c=selectedSet.size;
   document.getElementById('sel-num').textContent=c;
@@ -722,6 +925,24 @@ function openDialog(icon,title,msg,onConfirm){
 }
 function closeDialog(){document.getElementById('confirm-dialog').classList.remove('open');}
 
+// ── Archive / restore ──
+async function archiveProduct(product){
+  try{
+    const r=await api('/api/archive/'+product,{method:'POST'});
+    if(!r.ok)throw new Error();
+    showToast('📦 '+dn(product)+' archived — restore it from the Archived tab','',4000);
+    await refresh();
+  }catch(e){if(e.message!=='locked')showToast('Archive failed','error');}
+}
+async function restoreProduct(product){
+  try{
+    const r=await api('/api/restore/'+product,{method:'POST'});
+    if(!r.ok)throw new Error();
+    showToast('↺ '+dn(product)+' is back in the portfolio');
+    await refresh();
+  }catch(e){if(e.message!=='locked')showToast('Restore failed','error');}
+}
+
 // ── Delete ──
 function confirmDeleteImage(product,filename,e){
   if(e)e.stopPropagation();
@@ -732,40 +953,41 @@ function confirmDeleteImage(product,filename,e){
 }
 async function deleteImage(product,filename){
   try{
-    const r=await fetch('/api/delete/image',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({product,filename})});
+    const r=await api('/api/delete/image',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({product,filename})});
     if(!r.ok)throw new Error();
     selectedSet.delete(product+'/'+filename);
     showToast('✓ '+filename+' deleted');
-    await loadData(true); updateSelUI();
-  }catch(e){showToast('Delete failed','error');}
+    await refresh();
+  }catch(e){if(e.message!=='locked')showToast('Delete failed','error');}
 }
 function deleteSelected(){
   if(!selectedSet.size)return;
   openDialog('🗑','Delete '+selectedSet.size+' images?',
     'Permanently delete '+selectedSet.size+' selected image'+(selectedSet.size!==1?'s':'')+'. This cannot be undone.',
     async()=>{
-      let n=0;
-      for(const key of [...selectedSet]){
-        const [p,f]=key.split('/');
-        try{const r=await fetch('/api/delete/image',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({product:p,filename:f})});if(r.ok){selectedSet.delete(key);n++;}}catch(e){}
-      }
-      showToast('✓ '+n+' image'+(n!==1?'s':'')+' deleted');
-      await loadData(true); updateSelUI();
+      try{
+        const r=await api('/api/delete/images',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({files:[...selectedSet]})});
+        if(!r.ok)throw new Error();
+        const d=await r.json();
+        d.deleted.forEach(k=>selectedSet.delete(k));
+        showToast('✓ '+d.deleted.length+' image'+(d.deleted.length!==1?'s':'')+' deleted');
+        await refresh();
+      }catch(e){if(e.message!=='locked')showToast('Delete failed','error');}
     }
   );
 }
 function confirmDeleteFolder(product){
   const count=allImages.filter(i=>i.product===product).length;
   openDialog('🗑','Delete entire folder?',
-    'Delete all '+count+' images in "'+dn(product)+'"? This cannot be undone.',
+    'Delete all '+count+' images in "'+dn(product)+'"? This cannot be undone.'+
+    (view==='active'?' To just hide it, use 📦 Archive instead.':''),
     async()=>{
       try{
-        const r=await fetch('/api/delete/folder/'+product,{method:'DELETE'});
+        const r=await api('/api/delete/folder/'+product,{method:'DELETE'});
         if(!r.ok)throw new Error();
         showToast('✓ '+dn(product)+' deleted');
-        if(activeFilter===product)applyFilter('all');
-        await loadData(true);
-      }catch(e){showToast('Delete failed','error');}
+        await refresh();
+      }catch(e){if(e.message!=='locked')showToast('Delete failed','error');}
     }
   );
 }
@@ -774,26 +996,26 @@ function confirmDeleteFolder(product){
 function downloadSingle(product,filename,e){
   if(e)e.stopPropagation();
   const img=allImages.find(i=>i.product===product&&i.filename===filename);
-  const a=document.createElement('a');a.href=img&&img.url?img.url:'/images/'+product+'/'+filename;a.download=filename;a.click();
+  const a=document.createElement('a');a.href=img?img.url:'/images/'+product+'/'+filename;a.download=filename;a.click();
   showToast('Downloading '+filename+'…');
 }
 async function downloadFolder(product){
   showToast('Preparing ZIP for '+dn(product)+'…','',5000);
   try{
-    const r=await fetch('/api/download/folder/'+product);
+    const r=await api('/api/download/folder/'+product);
     if(!r.ok)throw new Error();
     const blob=await r.blob();
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=product+'.zip';a.click();
     URL.revokeObjectURL(url);
     showToast('✓ '+dn(product)+'.zip downloaded');
-  }catch(e){showToast('Download failed','error');}
+  }catch(e){if(e.message!=='locked')showToast('Download failed','error');}
 }
 async function downloadSelected(){
   if(!selectedSet.size)return;
   showToast('Preparing ZIP for '+selectedSet.size+' images…','',6000);
   try{
-    const r=await fetch('/api/download/selected',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files:[...selectedSet]})});
+    const r=await api('/api/download/selected',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files:[...selectedSet]})});
     if(!r.ok)throw new Error();
     const blob=await r.blob();
     const url=URL.createObjectURL(blob);
@@ -801,14 +1023,14 @@ async function downloadSelected(){
     URL.revokeObjectURL(url);
     showToast('✓ '+selectedSet.size+' images downloaded');
     clearSelection();
-  }catch(e){showToast('Download failed','error');}
+  }catch(e){if(e.message!=='locked')showToast('Download failed','error');}
 }
 
 // ── Lightbox ──
 function openLightbox(idx,e){if(e)e.stopPropagation();currentLbIndex=idx;updateLightbox();document.getElementById('lightbox').classList.add('open');document.body.style.overflow='hidden';}
 function updateLightbox(){
   const img=filteredImages[currentLbIndex];
-  document.getElementById('lb-img').src=img.url||'/images/'+img.product+'/'+img.filename;
+  document.getElementById('lb-img').src=img.url;
   document.getElementById('lb-product').textContent=dn(img.product);
   document.getElementById('lb-counter').textContent=(currentLbIndex+1)+' of '+filteredImages.length;
 }
@@ -828,7 +1050,7 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-document.getElementById('search').addEventListener('input',()=>applyFilter(activeFilter));
+document.getElementById('search').addEventListener('input',()=>applyFilter(activeFilter,true));
 
 // ── Mobile sidebar toggle ──
 function openSidebar(){
@@ -860,8 +1082,8 @@ document.getElementById('lightbox').addEventListener('touchend',e=>{
 },{passive:true});
 
 checkPasscode().then(ok=>{ if(ok) loadData(); });
-setInterval(()=>{ if(sessionStorage.getItem('maro_unlocked')==='1') loadData(true); },30000);
+setInterval(poll,POLL_MS);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) poll(); });
 </script>
 </body>
 </html>
-

@@ -80,7 +80,7 @@ def upload_file(local_path: Path, key: str) -> bool:
 def list_objects(prefix: str = "") -> list:
     """
     Return list of dicts: {key, last_modified, size}.
-    Excludes the name_map.json meta file.
+    Excludes root-level meta files (name_map.json, products.json).
     """
     try:
         client = _client()
@@ -92,7 +92,7 @@ def list_objects(prefix: str = "") -> list:
         for page in paginator.paginate(**kwargs):
             for obj in page.get("Contents", []):
                 k = obj["Key"]
-                if k == "name_map.json":
+                if "/" not in k:
                     continue
                 results.append({
                     "key": k,
@@ -150,26 +150,41 @@ def get_object_bytes(key: str) -> Optional[bytes]:
         return None
 
 
-# ── name_map stored as name_map.json in R2 root ──────────────────────────────
+# ── JSON meta files stored in the R2 bucket root ────────────────────────────
 
-def get_name_map() -> dict:
-    data = get_object_bytes("name_map.json")
-    if data:
-        try:
-            return json.loads(data)
-        except Exception:
-            pass
-    return {}
+def get_json(key: str) -> Optional[dict]:
+    """Return the parsed JSON stored at *key*, or None if it doesn't exist.
+
+    Any other failure raises, so a network blip is never mistaken for an
+    empty file (and then overwritten).
+    """
+    try:
+        resp = _client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] == "NoSuchKey":
+            return None
+        raise
+    return json.loads(resp["Body"].read())
 
 
-def put_name_map(name_map: dict) -> None:
-    data = json.dumps(name_map, indent=2).encode()
+def put_json(key: str, value: dict) -> bool:
+    data = json.dumps(value, indent=2, default=str).encode()
     try:
         _client().put_object(
             Bucket=R2_BUCKET_NAME,
-            Key="name_map.json",
+            Key=key,
             Body=data,
             ContentType="application/json",
         )
+        return True
     except Exception as exc:
-        log.error("R2 put_name_map failed: %s", exc)
+        log.error("R2 put_json failed for %s: %s", key, exc)
+        return False
+
+
+def get_name_map() -> dict:
+    try:
+        return get_json("name_map.json") or {}
+    except Exception as exc:
+        log.error("R2 get_name_map failed: %s", exc)
+        return {}
